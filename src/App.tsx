@@ -39,7 +39,32 @@ const DEFAULT_SETTINGS: AppSettings = {
   bgType: 'color',
   fontFamily: 'Inter',
   textColor: '#000000',
-  bgOpacity: 100
+  bgOpacity: 100,
+  imgbbKey: ''
+};
+
+const uploadToImgBB = async (file: File, key: string) => {
+  if (!key) return null;
+  const formData = new FormData();
+  formData.append('image', file);
+  try {
+    const response = await fetch(`https://api.imgbb.com/1/upload?key=${key}`, {
+      method: 'POST',
+      body: formData
+    });
+    const data = await response.json();
+    if (data.success) {
+      return data.data.url;
+    } else {
+      console.error("ImgBB Error:", data.error.message);
+      alert(`Cloud Upload Error: ${data.error.message}`);
+      return null;
+    }
+  } catch (error) {
+    console.error("Upload failed:", error);
+    alert("Network error during cloud upload.");
+    return null;
+  }
 };
 
 const DEFAULT_ACADEMIC_COVER: CoverPageSectionData = {
@@ -306,22 +331,33 @@ const MediaControls = ({
 const CoverPage = ({ 
   data, 
   isEditing, 
-  onUpdate 
+  onUpdate,
+  imgbbKey
 }: { 
   data: CoverPageData; 
   isEditing: boolean;
   onUpdate: (updates: Partial<CoverPageData>) => void;
+  imgbbKey?: string;
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const projectInputRefs = useRef<Record<string, HTMLInputElement>>({});
 
-  const handleHeroUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleHeroUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 10 * 1024 * 1024) {
         alert("File too large (max 10MB)");
         return;
       }
+
+      if (imgbbKey) {
+        const url = await uploadToImgBB(file, imgbbKey);
+        if (url) {
+          onUpdate({ heroMedia: { type: 'image' as const, url } });
+          return;
+        }
+      }
+
       const reader = new FileReader();
       reader.onload = () => onUpdate({ heroMedia: { type: 'image' as const, url: reader.result as string } });
       reader.onerror = () => alert("Failed to read file.");
@@ -329,13 +365,23 @@ const CoverPage = ({
     }
   };
 
-  const handleProjectUpload = (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleProjectUpload = async (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 10 * 1024 * 1024) {
         alert("File too large (max 10MB)");
         return;
       }
+
+      if (imgbbKey) {
+        const url = await uploadToImgBB(file, imgbbKey);
+        if (url) {
+          const newProjects = data.projects.map(p => p.id === id ? { ...p, media: { type: 'image' as const, url } } : p);
+          onUpdate({ projects: newProjects });
+          return;
+        }
+      }
+
       const reader = new FileReader();
       reader.onload = () => {
         const newProjects = data.projects.map(p => p.id === id ? { ...p, media: { type: 'image' as const, url: reader.result as string } } : p);
@@ -547,7 +593,8 @@ const AcademicCoverPage = ({
   onUpdateBlock,
   onRemoveBlock,
   onDuplicateBlock,
-  onDuplicateSystem
+  onDuplicateSystem,
+  imgbbKey
 }: { 
   data: CoverPageSectionData; 
   isEditing: boolean;
@@ -556,6 +603,7 @@ const AcademicCoverPage = ({
   onRemoveBlock: (id: string) => void;
   onDuplicateBlock: (id: string) => void;
   onDuplicateSystem: (id: string) => void;
+  imgbbKey?: string;
 }) => {
   return (
     <div className={`relative max-w-4xl mx-auto px-6 py-20 space-y-8 font-sans selection:bg-neutral-100 group/section flex flex-col ${
@@ -883,6 +931,7 @@ const AcademicCoverPage = ({
                 onUpdate={onUpdateBlock}
                 onRemove={onRemoveBlock}
                 onDuplicate={onDuplicateBlock}
+                imgbbKey={imgbbKey}
               />
             </motion.div>
           );
@@ -949,10 +998,11 @@ interface SortableBlockProps {
   onUpdate: (id: string, updates: Partial<ContentBlock>) => void;
   onRemove: (id: string) => void;
   onDuplicate: (id: string) => void;
+  imgbbKey?: string;
   key?: React.Key;
 }
 
-function SortableBlock({ block, editMode, onUpdate, onRemove, onDuplicate }: SortableBlockProps) {
+function SortableBlock({ block, editMode, onUpdate, onRemove, onDuplicate, imgbbKey }: SortableBlockProps) {
   const {
     attributes,
     listeners,
@@ -971,13 +1021,22 @@ function SortableBlock({ block, editMode, onUpdate, onRemove, onDuplicate }: Sor
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        alert("File too large (max 10MB)");
+      if (file.size > 20 * 1024 * 1024) {
+        alert("File too large (max 20MB)");
         return;
       }
+
+      if (imgbbKey) {
+        const url = await uploadToImgBB(file, imgbbKey);
+        if (url) {
+          onUpdate(block.id, { content: url });
+          return;
+        }
+      }
+
       const reader = new FileReader();
       reader.onloadend = () => {
         onUpdate(block.id, { content: reader.result as string });
@@ -1466,13 +1525,22 @@ export default function App() {
   const bgFileInputRef = useRef<HTMLInputElement>(null);
   const headerFileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleBgUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 20 * 1024 * 1024) {
         alert("File too large (max 20MB)");
         return;
       }
+
+      if (editingAppSettings.imgbbKey) {
+        const url = await uploadToImgBB(file, editingAppSettings.imgbbKey);
+        if (url) {
+          setEditingAppSettings(prev => ({ ...prev, bgImage: url, bgType: 'image' }));
+          return;
+        }
+      }
+
       const reader = new FileReader();
       reader.onload = () => {
         setEditingAppSettings(prev => ({ ...prev, bgImage: reader.result as string, bgType: 'image' }));
@@ -1481,13 +1549,22 @@ export default function App() {
     }
   };
 
-  const handleHeaderUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleHeaderUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        alert("File too large (max 2MB)");
+      if (file.size > 5 * 1024 * 1024) {
+        alert("File too large (max 5MB)");
         return;
       }
+
+      if (editingAppSettings.imgbbKey) {
+        const url = await uploadToImgBB(file, editingAppSettings.imgbbKey);
+        if (url) {
+          setEditingData(prev => ({ ...prev, headerImage: url, showHeaderImage: true }));
+          return;
+        }
+      }
+
       const reader = new FileReader();
       reader.onload = () => {
         setEditingData(prev => ({ ...prev, headerImage: reader.result as string, showHeaderImage: true }));
@@ -1553,7 +1630,7 @@ export default function App() {
           }
           
           // Clear URL parameter so refreshing doesn't keep loading old shared data if they edit later
-          // window.history.replaceState({}, document.title, window.location.pathname);
+          window.history.replaceState({}, document.title, window.location.pathname);
           return; // Skip loading from localStorage if we have shared data
         }
       } catch (e) {
@@ -1765,9 +1842,17 @@ export default function App() {
     };
 
     const compressed = LZString.compressToEncodedURIComponent(JSON.stringify(allData));
+    
+    // Most browsers/servers have a limit around 8k-16k characters. 
+    // If it's over, we should warn the user.
+    if (compressed.length > 8000) {
+      alert("⚠️ Your Portfolio is too large to share via a simple link because it contains large uploaded images. Please set up 'Cloud Storage' in Settings to make your sharing links shorter and reliable.");
+    }
+
     const url = `${window.location.origin}${window.location.pathname}?data=${compressed}`;
     setShareUrl(url);
     setIsSharing(true);
+    setHasCopied(false); // Reset copy status when generating new link
   };
 
   const copyToClipboard = async () => {
@@ -2181,6 +2266,33 @@ export default function App() {
               />
               <span className="text-[8px] font-black text-neutral-300 uppercase">Text Color</span>
             </div>
+          </div>
+        </div>
+
+        {/* Cloud Storage Config */}
+        <div className="flex flex-col gap-2 lg:pl-10 lg:border-l lg:border-neutral-100">
+          <span className="text-[7px] sm:text-[10px] font-black uppercase tracking-[0.2em] sm:tracking-[0.3em] text-neutral-300 text-center lg:text-left">Cloud Storage</span>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <input 
+                type="password" 
+                placeholder="ImgBB API Key"
+                value={editingAppSettings.imgbbKey || ''}
+                onChange={(e) => setEditingAppSettings(prev => ({ ...prev, imgbbKey: e.target.value }))}
+                className="bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-2 text-[10px] outline-none focus:border-black w-24 sm:w-40"
+              />
+              <a 
+                href="https://api.imgbb.com/" 
+                target="_blank" 
+                rel="noreferrer"
+                className="text-[8px] font-black text-blue-500 hover:underline uppercase"
+              >
+                Get Key
+              </a>
+            </div>
+            <p className="text-[7px] text-neutral-400 max-w-[150px] leading-tight">
+              Avoid 5MB limit: upload large images to the cloud.
+            </p>
           </div>
         </div>
       </div>
@@ -2757,6 +2869,7 @@ export default function App() {
                             onUpdate={updateBlock}
                             onRemove={removeBlock}
                             onDuplicate={duplicateBlock}
+                            imgbbKey={editingAppSettings.imgbbKey}
                           />
                         );
                       }
@@ -2947,6 +3060,7 @@ export default function App() {
                     onRemoveBlock={removeBlock}
                     onDuplicateBlock={duplicateBlock}
                     onDuplicateSystem={duplicateSystemItem}
+                    imgbbKey={isEditing ? editingAppSettings.imgbbKey : appSettings.imgbbKey}
                   />
                 ) : (
                   <div className={`max-w-4xl mx-auto px-6 py-20 space-y-12 animate-in fade-in duration-700 flex flex-col ${
@@ -3114,6 +3228,7 @@ export default function App() {
                               onUpdate={updateBlock} 
                               onRemove={removeBlock} 
                               onDuplicate={duplicateBlock}
+                              imgbbKey={editingAppSettings.imgbbKey}
                             />
                           </motion.div>
                         );
@@ -3448,8 +3563,8 @@ export default function App() {
               <div className="p-8 sm:p-12 space-y-8">
                 <div className="flex justify-between items-start">
                   <div className="space-y-1">
-                    <h3 className="text-3xl font-black uppercase tracking-tight">Share Site</h3>
-                    <p className="text-sm font-medium text-gray-500 uppercase tracking-widest">Anyone with this link can view your site</p>
+                    <h3 className="text-3xl font-black uppercase tracking-tight">Portfolio Link Ready!</h3>
+                    <p className="text-sm font-medium text-gray-500 uppercase tracking-widest">Share this link to show your progress</p>
                   </div>
                   <button 
                     onClick={() => setIsSharing(false)}
@@ -3460,6 +3575,10 @@ export default function App() {
                 </div>
 
                 <div className="space-y-4">
+                  <div className="p-6 bg-green-50/50 rounded-[1.5rem] border border-green-100/50 text-center">
+                    <span className="text-[10px] font-black uppercase tracking-[0.3em] text-green-600">✓ Snapshot Created Successfully</span>
+                  </div>
+
                   <div className="p-6 bg-gray-50 rounded-[1.5rem] border border-gray-100 overflow-hidden relative group">
                     <p className="text-neutral-400 text-xs font-mono break-all line-clamp-2 pr-12">
                       {shareUrl}
@@ -3477,7 +3596,7 @@ export default function App() {
                       animate={{ opacity: 1, y: 0 }}
                       className="text-center text-[10px] font-black uppercase tracking-widest text-green-500"
                     >
-                      Copied to clipboard!
+                      Copied to clipboard! Ready to view publically.
                     </motion.p>
                   )}
                 </div>
@@ -3494,8 +3613,9 @@ export default function App() {
               </div>
 
               <div className="bg-neutral-50 px-8 py-6 border-t border-gray-100">
-                <p className="text-center text-[9px] font-black uppercase tracking-widest text-gray-400">
-                  Tip: Changes you make and save will update this link's content for everyone.
+                <p className="text-center text-[9px] font-black uppercase tracking-widest text-gray-400 leading-relaxed">
+                  Tip: This link contains your site's current state. <br/>
+                  If you make more changes, click Share again to get a fresh link.
                 </p>
               </div>
             </motion.div>

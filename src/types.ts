@@ -118,6 +118,7 @@ export interface AppSettings {
   fontFamily: string;
   textColor: string;
   bgOpacity: number;
+  imgbbKey?: string;
 }
 
 export const SECTIONS: Section[] = [
