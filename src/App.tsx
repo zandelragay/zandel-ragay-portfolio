@@ -545,13 +545,17 @@ const AcademicCoverPage = ({
   isEditing, 
   onUpdate,
   onUpdateBlock,
-  onRemoveBlock
+  onRemoveBlock,
+  onDuplicateBlock,
+  onDuplicateSystem
 }: { 
   data: CoverPageSectionData; 
   isEditing: boolean;
   onUpdate: (updates: Partial<CoverPageSectionData>) => void;
   onUpdateBlock: (id: string, updates: Partial<ContentBlock>) => void;
   onRemoveBlock: (id: string) => void;
+  onDuplicateBlock: (id: string) => void;
+  onDuplicateSystem: (id: string) => void;
 }) => {
   return (
     <div className={`relative max-w-4xl mx-auto px-6 py-20 space-y-8 font-sans selection:bg-neutral-100 group/section flex flex-col ${
@@ -582,6 +586,13 @@ const AcademicCoverPage = ({
                         value={data.label}
                         onChange={(e) => onUpdate({ label: e.target.value })}
                       />
+                      <button 
+                        onClick={() => onDuplicateSystem(itemId)}
+                        className="p-3 text-neutral-400 hover:text-black hover:bg-neutral-50 rounded-xl transition-all"
+                        title="Duplicate Element"
+                      >
+                        <Copy size={24} />
+                      </button>
                       <button 
                         onClick={() => onRemoveBlock(itemId)}
                         className="p-3 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
@@ -620,6 +631,13 @@ const AcademicCoverPage = ({
                         onChange={(e) => onUpdate({ heading: e.target.value })}
                       />
                       <button 
+                        onClick={() => onDuplicateSystem(itemId)}
+                        className="p-2 text-neutral-300 hover:text-black opacity-0 group-hover/sys:opacity-100 transition-all"
+                        title="Duplicate Element"
+                      >
+                        <Copy size={16} />
+                      </button>
+                      <button 
                         onClick={() => onRemoveBlock(itemId)}
                         className="p-2 text-red-100 hover:text-red-400 opacity-0 group-hover/sys:opacity-100 transition-all"
                       >
@@ -650,14 +668,21 @@ const AcademicCoverPage = ({
               <SortableItem id={itemId} editMode={isEditing}>
                 <div className="relative group/sys w-full flex flex-col items-center py-4 sm:py-8 transition-all">
                   <div className="w-16 sm:w-24 h-1.5 sm:h-2 bg-black rounded-full shadow-sm" />
-                  {isEditing && (
+                  <div className="absolute -right-16 top-1/2 -translate-y-1/2 flex flex-col gap-2 opacity-0 group-hover/sys:opacity-100 transition-all">
+                    <button 
+                      onClick={() => onDuplicateSystem(itemId)}
+                      className="p-2 text-neutral-400 hover:text-black hover:bg-neutral-50 rounded-lg transition-all"
+                      title="Duplicate Element"
+                    >
+                      <Copy size={16} />
+                    </button>
                     <button 
                       onClick={() => onRemoveBlock(itemId)}
-                      className="absolute -right-12 top-1/2 -translate-y-1/2 p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                      className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                     >
                       <Trash2 size={16} />
                     </button>
-                  )}
+                  </div>
                 </div>
               </SortableItem>
             </motion.div>
@@ -684,6 +709,13 @@ const AcademicCoverPage = ({
                         onChange={(e) => onUpdate({ paragraph1: e.target.value })}
                         rows={8}
                       />
+                      <button 
+                        onClick={() => onDuplicateSystem(itemId)}
+                        className="p-3 text-neutral-400 hover:text-black hover:bg-neutral-50 rounded-xl transition-all"
+                        title="Duplicate Element"
+                      >
+                        <Copy size={24} />
+                      </button>
                       <button 
                         onClick={() => onRemoveBlock(itemId)}
                         className="p-3 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
@@ -722,12 +754,21 @@ const AcademicCoverPage = ({
                         onChange={(e) => onUpdate({ paragraph2: e.target.value })}
                         rows={6}
                       />
-                      <button 
-                        onClick={() => onRemoveBlock(itemId)}
-                        className="self-start p-3 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                      >
-                        <Trash2 size={20} />
-                      </button>
+                      <div className="flex flex-col gap-2">
+                        <button 
+                          onClick={() => onDuplicateSystem(itemId)}
+                          className="self-start p-3 text-neutral-400 hover:text-black hover:bg-neutral-50 rounded-xl transition-all"
+                          title="Duplicate Element"
+                        >
+                          <Copy size={20} />
+                        </button>
+                        <button 
+                          onClick={() => onRemoveBlock(itemId)}
+                          className="self-start p-3 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                        >
+                          <Trash2 size={20} />
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <p className={`text-lg text-black leading-[1.8] font-sans opacity-90 decoration-neutral-100 ${data.alignment === 'left' ? 'text-left' : data.alignment === 'right' ? 'text-right' : 'text-left sm:text-justify'}`}>
@@ -829,6 +870,7 @@ const AcademicCoverPage = ({
                 editMode={isEditing} 
                 onUpdate={onUpdateBlock}
                 onRemove={onRemoveBlock}
+                onDuplicate={onDuplicateBlock}
               />
             </motion.div>
           );
@@ -894,10 +936,11 @@ interface SortableBlockProps {
   editMode: boolean;
   onUpdate: (id: string, updates: Partial<ContentBlock>) => void;
   onRemove: (id: string) => void;
+  onDuplicate: (id: string) => void;
   key?: React.Key;
 }
 
-function SortableBlock({ block, editMode, onUpdate, onRemove }: SortableBlockProps) {
+function SortableBlock({ block, editMode, onUpdate, onRemove, onDuplicate }: SortableBlockProps) {
   const {
     attributes,
     listeners,
@@ -969,6 +1012,13 @@ function SortableBlock({ block, editMode, onUpdate, onRemove }: SortableBlockPro
               title="Toggle Alignment"
             >
               <AlignmentIcon alignment={block.alignment} />
+            </button>
+            <button 
+              onClick={() => onDuplicate(block.id)}
+              className="p-2 hover:bg-gray-100 rounded-lg text-gray-600"
+              title="Duplicate Block"
+            >
+              <Copy size={20} />
             </button>
             <button 
               onClick={() => onRemove(block.id)}
@@ -1720,6 +1770,127 @@ export default function App() {
     }
   };
 
+  const duplicateBlock = (id: string) => {
+    const blockId = `block-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    if (view === 'view1') {
+        const originalBlock = editingData.blocks.find(b => b.id === id);
+        if (!originalBlock) return;
+        const newBlock = { ...originalBlock, id: blockId };
+        const index = editingData.layoutOrder.indexOf(id);
+        const newLayoutOrder = [...editingData.layoutOrder];
+        newLayoutOrder.splice(index + 1, 0, blockId);
+        setEditingData(prev => ({
+            ...prev,
+            blocks: [...prev.blocks, newBlock],
+            layoutOrder: newLayoutOrder
+        }));
+    } else if (currentSection === 'cover-page') {
+        const originalBlock = editingAcademicCoverData.blocks?.find(b => b.id === id);
+        if (!originalBlock) return;
+        const newBlock = { ...originalBlock, id: blockId };
+        const index = editingAcademicCoverData.layoutOrder.indexOf(id);
+        const newLayoutOrder = [...editingAcademicCoverData.layoutOrder];
+        newLayoutOrder.splice(index + 1, 0, blockId);
+        setEditingAcademicCoverData(prev => ({
+            ...prev,
+            blocks: [...(prev.blocks || []), newBlock],
+            layoutOrder: newLayoutOrder
+        }));
+    } else {
+        const state = getSectionState(currentSection);
+        if (state) {
+            const [val, setVal, editVal, setEditVal] = state;
+            const originalBlock = editVal.blocks?.find(b => b.id === id);
+            if (!originalBlock) return;
+            const newBlock = { ...originalBlock, id: blockId };
+            const index = editVal.layoutOrder.indexOf(id);
+            const newLayoutOrder = [...editVal.layoutOrder];
+            newLayoutOrder.splice(index + 1, 0, blockId);
+            setEditVal(prev => ({
+                ...prev,
+                blocks: [...(prev.blocks || []), newBlock],
+                layoutOrder: newLayoutOrder
+            }));
+        }
+    }
+  };
+
+  const duplicateSystemItem = (itemId: string) => {
+    const blockId = `block-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    let content = '';
+    let alignment: 'left' | 'center' | 'right' = 'center';
+    let type: 'text' | 'image' | 'video' = 'text';
+
+    if (view === 'view1') {
+        if (itemId === 'sys-header') content = editingData.title;
+        else if (itemId === 'sys-title') content = editingData.title;
+        else if (itemId === 'sys-subtitle') content = editingData.subtitle;
+        else if (itemId === 'sys-desc') content = editingData.description;
+        else if (itemId === 'sys-student') content = editingData.studentName;
+        else if (itemId === 'sys-professor') content = editingData.professorName;
+        else if (itemId === 'sys-ay') content = editingData.academicYear;
+        else if (itemId === 'sys-divider') {
+            content = '---';
+        }
+        alignment = editingData.alignment || 'center';
+    } else if (currentSection === 'cover-page') {
+        if (itemId === 'sys-label') content = editingAcademicCoverData.label;
+        else if (itemId === 'sys-heading') content = editingAcademicCoverData.heading;
+        else if (itemId === 'sys-p1') content = editingAcademicCoverData.paragraph1;
+        else if (itemId === 'sys-p2') content = editingAcademicCoverData.paragraph2;
+        else if (itemId === 'sys-divider') content = '---';
+        alignment = editingAcademicCoverData.alignment || 'center';
+    } else {
+        const state = getSectionState(currentSection);
+        if (state) {
+            const data = state[2];
+            if (itemId === 'sys-header') {
+                content = SECTIONS.find(s => s.id === currentSection)?.label.replace(/^\d+\.\s*/, '') || 
+                          SECTIONS.flatMap(s => s.subItems || []).find(sub => sub.id === currentSection)?.label || '';
+            }
+            else if (itemId === 'sys-content') content = data.content;
+            else if (itemId === 'sys-divider') content = '---';
+            alignment = data.alignment || 'center';
+        }
+    }
+
+    const newBlock: ContentBlock = { id: blockId, type, content, alignment };
+
+    if (view === 'view1') {
+        const index = editingData.layoutOrder.indexOf(itemId);
+        const newLayoutOrder = [...editingData.layoutOrder];
+        newLayoutOrder.splice(index + 1, 0, blockId);
+        setEditingData(prev => ({
+            ...prev,
+            blocks: [...prev.blocks, newBlock],
+            layoutOrder: newLayoutOrder
+        }));
+    } else if (currentSection === 'cover-page') {
+        const index = editingAcademicCoverData.layoutOrder.indexOf(itemId);
+        const newLayoutOrder = [...editingAcademicCoverData.layoutOrder];
+        newLayoutOrder.splice(index + 1, 0, blockId);
+        setEditingAcademicCoverData(prev => ({
+            ...prev,
+            blocks: [...(prev.blocks || []), newBlock],
+            layoutOrder: newLayoutOrder
+        }));
+    } else {
+        const state = getSectionState(currentSection);
+        if (state) {
+            const [val, setVal, editVal, setEditVal] = state;
+            const index = editVal.layoutOrder.indexOf(itemId);
+            const newLayoutOrder = [...editVal.layoutOrder];
+            newLayoutOrder.splice(index + 1, 0, blockId);
+            setEditVal(prev => ({
+                ...prev,
+                blocks: [...(prev.blocks || []), newBlock],
+                layoutOrder: newLayoutOrder
+            }));
+        }
+    }
+  };
+
   const removeBlock = (id: string) => {
     if (view === 'view1') {
       setEditingData(prev => ({
@@ -2199,7 +2370,10 @@ export default function App() {
                                       onChange={(e) => setEditingData({ ...editingData, title: e.target.value })}
                                       placeholder="PROJECT TITLE"
                                     />
-                                    <button onClick={() => removeBlock(itemId)} className="p-4 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-2xl transition-all" title="Remove Title"><Trash2 size={32} /></button>
+                                    <div className="flex flex-col gap-2">
+                                        <button onClick={() => duplicateSystemItem(itemId)} className="p-3 text-neutral-400 hover:text-black hover:bg-neutral-50 rounded-xl transition-all" title="Duplicate Title"><Copy size={24} /></button>
+                                        <button onClick={() => removeBlock(itemId)} className="p-3 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all" title="Remove Title"><Trash2 size={24} /></button>
+                                    </div>
                                   </div>
                                 ) : (
                   <h1 className={`text-[clamp(1.8rem,9.5vw,7.5rem)] font-black font-display uppercase tracking-[-0.04em] leading-tight text-black w-full px-2 sm:px-4 break-words ${
@@ -2233,6 +2407,7 @@ export default function App() {
                                     onChange={(e) => setEditingData({ ...editingData, subtitle: e.target.value })}
                                     placeholder="In TLE 10"
                                   />
+                                  <button onClick={() => duplicateSystemItem(itemId)} className="p-2 text-neutral-400 hover:text-black hover:bg-neutral-50 rounded-lg transition-all" title="Duplicate Subtitle"><Copy size={20} /></button>
                                   <button onClick={() => removeBlock(itemId)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Remove Subtitle"><Trash2 size={20} /></button>
                                 </div>
                               ) : (
@@ -2264,6 +2439,7 @@ export default function App() {
                                     value={editingData.description}
                                     onChange={(e) => setEditingData({ ...editingData, description: e.target.value })}
                                   />
+                                  <button onClick={() => duplicateSystemItem(itemId)} className="p-2 text-neutral-400 hover:text-black hover:bg-neutral-50 rounded-lg transition-all" title="Duplicate Element"><Copy size={16} /></button>
                                   <button onClick={() => removeBlock(itemId)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Remove Meta"><Trash2 size={16} /></button>
                                 </div>
                               ) : (
@@ -2288,7 +2464,10 @@ export default function App() {
                             >
                               <div className="w-16 sm:w-24 h-1.5 sm:h-2 bg-black mx-auto rounded-full shadow-sm mb-4 sm:mb-8" />
                               {isEditing && (
-                                <button onClick={() => removeBlock(itemId)} className="absolute -right-12 top-1/2 -translate-y-1/2 p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"><Trash2 size={16} /></button>
+                                <div className="absolute -right-12 top-1/2 -translate-y-1/2 flex flex-col gap-2">
+                                  <button onClick={() => duplicateSystemItem(itemId)} className="p-2 text-neutral-400 hover:text-black hover:bg-neutral-50 rounded-lg transition-all" title="Duplicate Divider"><Copy size={16} /></button>
+                                  <button onClick={() => removeBlock(itemId)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"><Trash2 size={16} /></button>
+                                </div>
                               )}
                             </motion.div>
                           </SortableItem>
@@ -2333,7 +2512,10 @@ export default function App() {
                                         onChange={(e) => setEditingData({ ...editingData, courseYearSection: e.target.value })}
                                       />
                                     </div>
-                                    <button onClick={() => removeBlock(itemId)} className="p-3 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all" title="Remove Student Info"><Trash2 size={24} /></button>
+                                    <div className="flex flex-col gap-2">
+                                        <button onClick={() => duplicateSystemItem(itemId)} className="p-3 text-neutral-400 hover:text-black hover:bg-neutral-50 rounded-xl transition-all" title="Duplicate Element"><Copy size={24} /></button>
+                                        <button onClick={() => removeBlock(itemId)} className="p-3 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all" title="Remove Student Info"><Trash2 size={24} /></button>
+                                    </div>
                                   </div>
                                 ) : (
                                   <div className="px-4">
@@ -2378,7 +2560,10 @@ export default function App() {
                                     value={editingData.professorName}
                                     onChange={(e) => setEditingData({ ...editingData, professorName: e.target.value })}
                                   />
-                                  <button onClick={() => removeBlock(itemId)} className="p-3 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all" title="Remove Professor"><Trash2 size={24} /></button>
+                                  <div className="flex flex-col gap-2">
+                                    <button onClick={() => duplicateSystemItem(itemId)} className="p-3 text-neutral-400 hover:text-black hover:bg-neutral-50 rounded-xl transition-all" title="Duplicate Element"><Copy size={24} /></button>
+                                    <button onClick={() => removeBlock(itemId)} className="p-3 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all" title="Remove Professor"><Trash2 size={24} /></button>
+                                  </div>
                                 </div>
                               ) : (
                                 <div className="px-4">
@@ -2413,7 +2598,10 @@ export default function App() {
                                       value={editingData.academicYear}
                                       onChange={(e) => setEditingData({ ...editingData, academicYear: e.target.value })}
                                     />
-                                    <button onClick={() => removeBlock(itemId)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Remove Year"><Trash2 size={16} /></button>
+                                    <div className="flex flex-col gap-2">
+                                        <button onClick={() => duplicateSystemItem(itemId)} className="p-2 text-neutral-400 hover:text-black hover:bg-neutral-50 rounded-lg transition-all" title="Duplicate Element"><Copy size={16} /></button>
+                                        <button onClick={() => removeBlock(itemId)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Remove Year"><Trash2 size={16} /></button>
+                                    </div>
                                   </div>
                                 </div>
                               ) : (
@@ -2436,6 +2624,7 @@ export default function App() {
                             editMode={isEditing} 
                             onUpdate={updateBlock}
                             onRemove={removeBlock}
+                            onDuplicate={duplicateBlock}
                           />
                         );
                       }
@@ -2624,6 +2813,8 @@ export default function App() {
                     onUpdate={(updates) => setEditingAcademicCoverData(prev => ({ ...prev, ...updates }))}
                     onUpdateBlock={updateBlock}
                     onRemoveBlock={removeBlock}
+                    onDuplicateBlock={duplicateBlock}
+                    onDuplicateSystem={duplicateSystemItem}
                   />
                 ) : (
                   <div className={`max-w-4xl mx-auto px-6 py-20 space-y-12 animate-in fade-in duration-700 flex flex-col ${
@@ -2658,12 +2849,21 @@ export default function App() {
                                    SECTIONS.flatMap(s => s.subItems || []).find(sub => sub.id === currentSection)?.label}
                                 </h1>
                                 {isEditing && (
-                                  <button 
-                                    onClick={() => removeBlock(itemId)}
-                                    className="absolute -right-12 top-1/2 -translate-y-1/2 p-3 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all z-20"
-                                  >
-                                    <Trash2 size={24} />
-                                  </button>
+                                  <div className="absolute -right-12 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-20">
+                                    <button 
+                                      onClick={() => duplicateSystemItem(itemId)}
+                                      className="p-3 text-neutral-400 hover:text-black hover:bg-neutral-50 rounded-xl transition-all"
+                                      title="Duplicate Element"
+                                    >
+                                      <Copy size={24} />
+                                    </button>
+                                    <button 
+                                      onClick={() => removeBlock(itemId)}
+                                      className="p-3 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                                    >
+                                      <Trash2 size={24} />
+                                    </button>
+                                  </div>
                                 )}
                               </div>
                             </SortableItem>
@@ -2685,12 +2885,21 @@ export default function App() {
                               <div className="relative group/sys w-full flex flex-col items-center py-4 sm:py-8 transition-all">
                                 <div className="w-16 sm:w-24 h-1.5 sm:h-2 bg-black rounded-full shadow-sm" />
                                 {isEditing && (
-                                  <button 
-                                    onClick={() => removeBlock(itemId)}
-                                    className="absolute -right-12 top-1/2 -translate-y-1/2 p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
+                                  <div className="absolute -right-16 top-1/2 -translate-y-1/2 flex flex-col gap-2 opacity-0 group-hover/sys:opacity-100 transition-all">
+                                    <button 
+                                      onClick={() => duplicateSystemItem(itemId)}
+                                      className="p-2 text-neutral-400 hover:text-black hover:bg-neutral-50 rounded-lg transition-all"
+                                      title="Duplicate Element"
+                                    >
+                                      <Copy size={16} />
+                                    </button>
+                                    <button 
+                                      onClick={() => removeBlock(itemId)}
+                                      className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </div>
                                 )}
                               </div>
                             </SortableItem>
@@ -2710,29 +2919,38 @@ export default function App() {
                           >
                             <SortableItem id={itemId} editMode={isEditing}>
                               <div className="max-w-3xl mx-auto w-full relative group/sys z-10">
-                                {isEditing ? (
-                                  <div className="flex gap-4 relative z-20">
-                                    <textarea
-                                      className={`w-full p-6 sm:p-10 text-xl sm:text-2xl md:text-3xl text-black font-medium leading-relaxed border-2 border-dashed border-gray-200 rounded-[2rem] sm:rounded-[3rem] focus:border-black focus:bg-white outline-none bg-transparent resize-none italic transition-all ${
-                                        data.alignment === 'left' ? 'text-left'
-                                        : data.alignment === 'right' ? 'text-right'
-                                        : 'text-center'
-                                      }`}
-                                      value={data.content}
-                                      onChange={(e) => {
-                                        const state = getSectionState(currentSection);
-                                        if (state) state[3](prev => ({ ...prev, content: e.target.value }));
-                                      }}
-                                      rows={8}
-                                    />
-                                    <button 
-                                      onClick={() => removeBlock(itemId)}
-                                      className="self-start p-3 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                                    >
-                                      <Trash2 size={24} />
-                                    </button>
-                                  </div>
-                                ) : (
+                                  {isEditing ? (
+                                    <div className="flex gap-4 relative z-20">
+                                      <textarea
+                                        className={`w-full p-6 sm:p-10 text-xl sm:text-2xl md:text-3xl text-black font-medium leading-relaxed border-2 border-dashed border-gray-200 rounded-[2rem] sm:rounded-[3rem] focus:border-black focus:bg-white outline-none bg-transparent resize-none italic transition-all ${
+                                          data.alignment === 'left' ? 'text-left'
+                                          : data.alignment === 'right' ? 'text-right'
+                                          : 'text-center'
+                                        }`}
+                                        value={data.content}
+                                        onChange={(e) => {
+                                          const state = getSectionState(currentSection);
+                                          if (state) state[3](prev => ({ ...prev, content: e.target.value }));
+                                        }}
+                                        rows={8}
+                                      />
+                                      <div className="flex flex-col gap-2">
+                                        <button 
+                                          onClick={() => duplicateSystemItem(itemId)}
+                                          className="p-3 text-neutral-400 hover:text-black hover:bg-neutral-50 rounded-xl transition-all"
+                                          title="Duplicate Element"
+                                        >
+                                          <Copy size={24} />
+                                        </button>
+                                        <button 
+                                          onClick={() => removeBlock(itemId)}
+                                          className="p-3 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                                        >
+                                          <Trash2 size={24} />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
                                   <p className={`text-lg sm:text-2xl md:text-4xl text-black font-medium leading-relaxed italic px-4 sm:px-12 break-words w-full mx-auto max-w-4xl tracking-tight ${
                                     data.alignment === 'left' ? 'text-left'
                                     : data.alignment === 'right' ? 'text-right'
@@ -2763,6 +2981,7 @@ export default function App() {
                               editMode={isEditing} 
                               onUpdate={updateBlock} 
                               onRemove={removeBlock} 
+                              onDuplicate={duplicateBlock}
                             />
                           </motion.div>
                         );
