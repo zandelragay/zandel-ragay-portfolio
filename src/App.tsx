@@ -40,7 +40,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   fontFamily: 'Inter',
   textColor: '#000000',
   bgOpacity: 100,
-  imgbbKey: ''
+  imgbbKey: 'a51150c02add7feb271f1e50b63c598b'
 };
 
 const uploadToImgBB = async (file: File, key: string) => {
@@ -1520,6 +1520,7 @@ export default function App() {
   const [isSharing, setIsSharing] = useState(false);
   const [hasCopied, setHasCopied] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
+  const [isUrlTooLarge, setIsUrlTooLarge] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const bgFileInputRef = useRef<HTMLInputElement>(null);
@@ -1729,6 +1730,10 @@ export default function App() {
     if (savedSettings) {
       try {
         const parsed = JSON.parse(savedSettings);
+        // Force the new provided default key if none exists in saved settings
+        if (!parsed.imgbbKey) {
+          parsed.imgbbKey = DEFAULT_SETTINGS.imgbbKey;
+        }
         const mergedSettings = { ...DEFAULT_SETTINGS, ...parsed };
         setAppSettings(mergedSettings);
         setEditingAppSettings(mergedSettings);
@@ -1844,15 +1849,14 @@ export default function App() {
     const compressed = LZString.compressToEncodedURIComponent(JSON.stringify(allData));
     
     // Most browsers/servers have a limit around 8k-16k characters. 
-    // If it's over, we should warn the user.
-    if (compressed.length > 8000) {
-      alert("⚠️ Your Portfolio is too large to share via a simple link because it contains large uploaded images. Please set up 'Cloud Storage' in Settings to make your sharing links shorter and reliable.");
-    }
-
+    // We'll show a warning in the UI instead of an alert.
+    const tooLarge = compressed.length > 8000;
+    setIsUrlTooLarge(tooLarge);
+    
     const url = `${window.location.origin}${window.location.pathname}?data=${compressed}`;
     setShareUrl(url);
     setIsSharing(true);
-    setHasCopied(false); // Reset copy status when generating new link
+    setHasCopied(false); 
   };
 
   const copyToClipboard = async () => {
@@ -3578,6 +3582,17 @@ export default function App() {
                   <div className="p-6 bg-green-50/50 rounded-[1.5rem] border border-green-100/50 text-center">
                     <span className="text-[10px] font-black uppercase tracking-[0.3em] text-green-600">✓ Snapshot Created Successfully</span>
                   </div>
+
+                  {isUrlTooLarge && (
+                    <div className="p-6 bg-amber-50 rounded-[1.5rem] border border-amber-100 flex flex-col gap-2">
+                       <span className="text-[10px] font-black uppercase tracking-[0.3em] text-amber-600">⚠️ Link Size Warning</span>
+                       <p className="text-[10px] text-amber-700 leading-normal">
+                         Your portfolio is currently very large because it contains embedded images. 
+                         The link above might not work properly for some viewers. 
+                         Cloud storage is now enabled to fix this for all future uploads!
+                       </p>
+                    </div>
+                  )}
 
                   <div className="p-6 bg-gray-50 rounded-[1.5rem] border border-gray-100 overflow-hidden relative group">
                     <p className="text-neutral-400 text-xs font-mono break-all line-clamp-2 pr-12">
