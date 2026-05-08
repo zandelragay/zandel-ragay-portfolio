@@ -5,7 +5,7 @@ import {
   Menu, X, Pencil, Save, RotateCcw, ChevronRight, 
   Type, Image as ImageIcon, Video, Trash2, 
   AlignLeft, AlignCenter, AlignRight, Eye, EyeOff, Plus, RotateCw,
-  GripVertical, Upload, Book, Star, GraduationCap, Lock, Unlock, Share2, Copy, Check, Palette, Link
+  GripVertical, Upload, Book, Star, GraduationCap, Lock, Unlock, Share2, Copy, Check, Palette, Link, Globe
 } from 'lucide-react';
 import { 
   DndContext, 
@@ -2492,9 +2492,9 @@ export default function App() {
                                        </button>
                                      </div>
                                    ) : (
-                                     <button 
+                                     <div 
                                         onClick={() => headerFileInputRef.current?.click()}
-                                        className="w-full max-w-2xl aspect-[3/1] border-2 border-dashed border-gray-200 rounded-3xl flex flex-col items-center justify-center gap-3 text-gray-400 hover:border-black hover:text-black transition-all bg-gray-50/50"
+                                        className="w-full max-w-2xl aspect-[3/1] border-2 border-dashed border-gray-200 rounded-3xl flex flex-col items-center justify-center gap-3 text-gray-400 hover:border-black hover:text-black transition-all bg-gray-50/50 cursor-pointer"
                                      >
                                        <div className="flex flex-col items-center gap-4" onClick={(e) => e.stopPropagation()}>
                                          <div className="w-12 h-12 rounded-full bg-white shadow-sm flex items-center justify-center text-black">
@@ -2536,7 +2536,7 @@ export default function App() {
                                            </div>
                                          </div>
                                        </div>
-                                     </button>
+                                     </div>
                                    )}
                                    <input 
                                      type="file" 
