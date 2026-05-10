@@ -8,7 +8,8 @@ import {
   Type, Image as ImageIcon, Video, Trash2, 
   AlignLeft, AlignCenter, AlignRight, Eye, EyeOff, Plus, RotateCw,
   GripVertical, Upload, Book, Star, GraduationCap, Lock, Unlock, Share2, Copy, Check, Palette, Link, Globe,
-  ArrowUpCircle, ArrowDownCircle, ArrowLeftCircle, ArrowRightCircle
+  ArrowUpCircle, ArrowDownCircle, ArrowLeftCircle, ArrowRightCircle,
+  LayoutDashboard, MoreVertical, ExternalLink, Calendar
 } from 'lucide-react';
 import { 
   DndContext, 
@@ -35,6 +36,17 @@ const STORAGE_KEY = 'portfolio_title_page_data_v3';
 const COVER_STORAGE_KEY = 'portfolio_cover_page_data_v1';
 const SETTINGS_STORAGE_KEY = 'portfolio_app_settings_v1';
 const NEW_COVER_SECTION_KEY = 'coverPageData';
+const PORTFOLIOS_KEY = 'portfolios_list_v1';
+const CURRENT_PORTFOLIO_ID_KEY = 'current_portfolio_id_v1';
+
+interface PortfolioSnapshot {
+  id: string;
+  name: string;
+  lastModified: number;
+  activeShareId: string | null;
+  data: any; // Compressed data
+  isOriginal?: boolean;
+}
 
 const DEFAULT_SETTINGS: AppSettings = {
   bgColor: '#ffffff',
@@ -1696,6 +1708,205 @@ export default function App() {
   const [isUrlTooLarge, setIsUrlTooLarge] = useState(false);
   const [isLoadingShared, setIsLoadingShared] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [showDashboard, setShowDashboard] = useState(true);
+  const [portfolios, setPortfolios] = useState<PortfolioSnapshot[]>([]);
+  const [currentPortfolioId, setCurrentPortfolioId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renamingValue, setRenamingValue] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isSharedView, setIsSharedView] = useState(false);
+  const [showStatusIcons, setShowStatusIcons] = useState(() => {
+    const saved = localStorage.getItem('portfolio_show_status');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('portfolio_show_status', JSON.stringify(showStatusIcons));
+  }, [showStatusIcons]);
+
+  const getAllData = () => {
+    const data: any = {
+      titlePage: isEditing ? editingData : titlePageData,
+      coverPage: isEditing ? editingCoverData : coverPageData,
+      academicCover: isEditing ? editingAcademicCoverData : academicCoverData,
+      acknowledgement: isEditing ? editingAcknowledgement : acknowledgement,
+      dedication: isEditing ? editingDedication : dedication,
+      philosophy: isEditing ? editingPhilosophy : philosophy,
+      cv: isEditing ? editingCV : cv,
+      achievements: isEditing ? editingAchievements : achievements,
+      seminars: isEditing ? editingSeminars : seminars,
+      deptBackground: isEditing ? editingDeptBackground : deptBackground,
+      teachers: isEditing ? editingTeachers : teachers,
+      inclusions: isEditing ? editingInclusions : inclusions,
+      appendices: isEditing ? editingAppendices : appendices,
+      premises: isEditing ? editingPremises : premises,
+      logo: isEditing ? editingLogo : logo,
+      introHistory: isEditing ? editingIntroHistory : introHistory,
+      missionVision: isEditing ? editingMissionVision : missionVision,
+      orgStructure: isEditing ? editingOrgStructure : orgStructure,
+      subjectsTaught: isEditing ? editingSubjectsTaught : subjectsTaught,
+      messageTeachers: isEditing ? editingMessageTeachers : messageTeachers,
+      quizzes: isEditing ? editingQuizzes : quizzes,
+      activities: isEditing ? editingActivities : activities,
+      lessonPlan: isEditing ? editingLessonPlan : lessonPlan,
+      instructionalMaterials: isEditing ? editingInstructionalMaterials : instructionalMaterials,
+      extracurricular: isEditing ? editingExtracurricular : extracurricular,
+      evidence: isEditing ? editingEvidence : evidence,
+      appSettings: isEditing ? editingAppSettings : appSettings
+    };
+    return data;
+  };
+
+  const applyPortfolioData = (allData: any) => {
+    if (!allData) return;
+    
+    const sanitizeStrings = (obj: any, defaults: any) => {
+      if (!obj) return defaults;
+      const res = { ...defaults, ...obj };
+      Object.keys(defaults).forEach(key => {
+        if (typeof defaults[key] === 'string' && typeof res[key] === 'object') {
+          res[key] = defaults[key];
+        }
+      });
+      return res;
+    };
+
+    if (allData.titlePage) { 
+      const data = sanitizeStrings(allData.titlePage, DEFAULT_TITLE_DATA);
+      setTitlePageData(data); setEditingData(data); 
+    }
+    if (allData.coverPage) { 
+      const data = sanitizeStrings(allData.coverPage, DEFAULT_COVER_DATA);
+      setCoverPageData(data); setEditingCoverData(data); 
+    }
+    if (allData.academicCover) { 
+      const data = sanitizeStrings(allData.academicCover, DEFAULT_ACADEMIC_COVER);
+      setAcademicCoverData(data); setEditingAcademicCoverData(data); 
+    }
+    if (allData.acknowledgement) { 
+      const data = sanitizeStrings(allData.acknowledgement, DEFAULT_ACKNOWLEDGEMENT);
+      setAcknowledgement(data); setEditingAcknowledgement(data); 
+    }
+    if (allData.dedication) { 
+      const data = sanitizeStrings(allData.dedication, DEFAULT_DEDICATION);
+      setDedication(data); setEditingDedication(data); 
+    }
+    
+    ['philosophy', 'cv', 'achievements', 'seminars', 'deptBackground', 'teachers', 'inclusions', 'appendices',
+     'premises', 'logo', 'introHistory', 'missionVision', 'orgStructure', 'subjectsTaught', 'messageTeachers', 
+     'quizzes', 'activities', 'lessonPlan', 'instructionalMaterials', 'extracurricular', 'evidence'].forEach(key => {
+      if (allData[key]) {
+        const state = getSectionState(key as any);
+        if (state) {
+          state[1](allData[key]);
+          state[3](allData[key]);
+        }
+      }
+    });
+
+    if (allData.appSettings) {
+      setAppSettings(allData.appSettings);
+      setEditingAppSettings(allData.appSettings);
+    }
+  };
+
+  const createPortfolio = (name: string = "New Portfolio", initialData?: any, isOriginal: boolean = false, shouldHideDashboard: boolean = true) => {
+    setIsSharedView(false);
+    const id = Math.random().toString(36).substring(2, 11).toUpperCase();
+    
+    // Ensure we have data to save
+    let dataToSave = initialData;
+    if (!dataToSave) {
+      const allData = getAllData();
+      dataToSave = LZString.compressToEncodedURIComponent(JSON.stringify(allData));
+    }
+
+    const newPortfolio: PortfolioSnapshot = {
+      id,
+      name,
+      lastModified: Date.now(),
+      activeShareId: null,
+      data: dataToSave,
+      isOriginal
+    };
+    
+    const updated = [...portfolios, newPortfolio];
+    setPortfolios(updated);
+    localStorage.setItem(PORTFOLIOS_KEY, JSON.stringify(updated));
+    localStorage.setItem(CURRENT_PORTFOLIO_ID_KEY, id);
+    
+    // Switch to it
+    switchPortfolio(id, updated, shouldHideDashboard);
+  };
+
+  const switchPortfolio = (id: string, list: PortfolioSnapshot[] = portfolios, shouldHideDashboard: boolean = true) => {
+    setIsSharedView(false);
+    const p = list.find(item => item.id === id);
+    if (p) {
+      console.log("Switching to portfolio:", p.name, id);
+      try {
+        const decompressed = LZString.decompressFromEncodedURIComponent(p.data);
+        if (decompressed) {
+          applyPortfolioData(JSON.parse(decompressed));
+          setCurrentPortfolioId(id);
+          setActiveShareId(p.activeShareId || null);
+          localStorage.setItem(CURRENT_PORTFOLIO_ID_KEY, id);
+          
+          if (shouldHideDashboard) {
+            setShowDashboard(false);
+          }
+          
+          // Set view to home page on switch
+          setView('view1');
+          setCurrentSection('cover-page');
+        }
+      } catch (e) {
+        console.error("Failed to switch portfolio", e);
+        // Fallback: try parsing as raw JSON if decompression fails
+        try {
+          applyPortfolioData(JSON.parse(p.data));
+          setCurrentPortfolioId(id);
+          setActiveShareId(p.activeShareId || null);
+          if (shouldHideDashboard) {
+            setShowDashboard(false);
+          }
+        } catch(err) {}
+      }
+    }
+  };
+
+  const duplicatePortfolio = (id: string) => {
+    const p = portfolios.find(item => item.id === id);
+    if (p) {
+      createPortfolio(`${p.name} (Copy)`, p.data, false, false);
+    }
+  };
+
+  const deletePortfolio = (id: string) => {
+    const p = portfolios.find(item => item.id === id);
+    if (!p || p.isOriginal) return;
+
+    const updated = portfolios.filter(p => p.id !== id);
+    setPortfolios(updated);
+    localStorage.setItem(PORTFOLIOS_KEY, JSON.stringify(updated));
+    setDeletingId(null);
+    
+    if (updated.length === 0) {
+      createPortfolio("Original", undefined, true, false);
+    } else if (currentPortfolioId === id) {
+      switchPortfolio(updated[0].id, updated, false);
+    }
+  };
+
+  const handleRename = (id: string) => {
+    if (renamingValue && renamingValue.trim()) {
+      const updated = portfolios.map(item => item.id === id ? { ...item, name: renamingValue.trim() } : item);
+      setPortfolios(updated);
+      localStorage.setItem(PORTFOLIOS_KEY, JSON.stringify(updated));
+    }
+    setRenamingId(null);
+    setRenamingValue('');
+  };
 
   const bgFileInputRef = useRef<HTMLInputElement>(null);
   const headerFileInputRef = useRef<HTMLInputElement>(null);
@@ -1804,205 +2015,82 @@ export default function App() {
       if (rawData) {
         try {
           const decompressed = LZString.decompressFromEncodedURIComponent(rawData);
-          if (!decompressed) {
-            console.error("Decompression failed - data might be truncated or corrupt.");
-            if (sharedData && sharedData.length > 2000) {
-              alert("The link you followed is too long and was likely cut off by the browser. Please ask the sender for a shorter Cloud link.");
-            }
-            return false;
-          }
-
-          const parsed = JSON.parse(decompressed);
-          
-          if (parsed) {
-            console.log("Portfolio data successfully parsed.");
-            const sanitizeStrings = (obj: any, defaults: any) => {
-              if (!obj) return defaults;
-              const res = { ...defaults, ...obj };
-              Object.keys(defaults).forEach(key => {
-                if (typeof defaults[key] === 'string' && typeof res[key] === 'object') {
-                  res[key] = defaults[key];
-                }
-              });
-              return res;
-            };
-
-            if (parsed.titlePage) { 
-              const data = sanitizeStrings(parsed.titlePage, DEFAULT_TITLE_DATA);
-              setTitlePageData(data); setEditingData(data); 
-            }
-            if (parsed.coverPage) { 
-              const data = sanitizeStrings(parsed.coverPage, DEFAULT_COVER_DATA);
-              setCoverPageData(data); setEditingCoverData(data); 
-            }
-            if (parsed.academicCover) { 
-              const data = sanitizeStrings(parsed.academicCover, DEFAULT_ACADEMIC_COVER);
-              setAcademicCoverData(data); setEditingAcademicCoverData(data); 
-            }
-            if (parsed.acknowledgement) { 
-              const data = sanitizeStrings(parsed.acknowledgement, DEFAULT_ACKNOWLEDGEMENT);
-              setAcknowledgement(data); setEditingAcknowledgement(data); 
-            }
-            if (parsed.dedication) { 
-              const data = sanitizeStrings(parsed.dedication, DEFAULT_DEDICATION);
-              setDedication(data); setEditingDedication(data); 
-            }
-            
-            // Generic handler for all other sections to avoid missing any
-            ['philosophy', 'cv', 'achievements', 'seminars', 'deptBackground', 'teachers', 'inclusions', 'appendices',
-             'premises', 'logo', 'introHistory', 'missionVision', 'orgStructure', 'subjectsTaught', 'messageTeachers', 
-             'quizzes', 'activities', 'lessonPlan', 'instructionalMaterials', 'extracurricular', 'evidence'].forEach(key => {
-              if (parsed[key]) {
-                const state = getSectionState(key as any);
-                if (state) {
-                  state[1](parsed[key]);
-                  state[3](parsed[key]);
-                } else {
-                  // Fallback for direct state setters if they exist
-                  if (key === 'philosophy') { setPhilosophy(parsed[key]); setEditingPhilosophy(parsed[key]); }
-                  else if (key === 'cv') { setCV(parsed[key]); setEditingCV(parsed[key]); }
-                  else if (key === 'achievements') { setAchievements(parsed[key]); setEditingAchievements(parsed[key]); }
-                  else if (key === 'seminars') { setSeminars(parsed[key]); setEditingSeminars(parsed[key]); }
-                  else if (key === 'deptBackground') { setDeptBackground(parsed[key]); setEditingDeptBackground(parsed[key]); }
-                  else if (key === 'teachers') { setTeachers(parsed[key]); setEditingTeachers(parsed[key]); }
-                  else if (key === 'inclusions') { setInclusions(parsed[key]); setEditingInclusions(parsed[key]); }
-                  else if (key === 'appendices') { setAppendices(parsed[key]); setEditingAppendices(parsed[key]); }
-                  else if (key === 'premises') { setPremises(parsed[key]); setEditingPremises(parsed[key]); }
-                  else if (key === 'logo') { setLogo(parsed[key]); setEditingLogo(parsed[key]); }
-                  else if (key === 'introHistory') { setIntroHistory(parsed[key]); setEditingIntroHistory(parsed[key]); }
-                  else if (key === 'missionVision') { setMissionVision(parsed[key]); setEditingMissionVision(parsed[key]); }
-                  else if (key === 'orgStructure') { setOrgStructure(parsed[key]); setEditingOrgStructure(parsed[key]); }
-                  else if (key === 'subjectsTaught') { setSubjectsTaught(parsed[key]); setEditingSubjectsTaught(parsed[key]); }
-                  else if (key === 'messageTeachers') { setMessageTeachers(parsed[key]); setEditingMessageTeachers(parsed[key]); }
-                }
-              }
-            });
-
-            // Extra safety for remaining ones
-            if (parsed.messageTeachers) { setMessageTeachers(parsed.messageTeachers); setEditingMessageTeachers(parsed.messageTeachers); }
-            if (parsed.quizzes) { setQuizzes(parsed.quizzes); setEditingQuizzes(parsed.quizzes); }
-            if (parsed.activities) { setActivities(parsed.activities); setEditingActivities(parsed.activities); }
-            if (parsed.lessonPlan) { setLessonPlan(parsed.lessonPlan); setEditingLessonPlan(parsed.lessonPlan); }
-            if (parsed.instructionalMaterials) { setInstructionalMaterials(parsed.instructionalMaterials); setEditingInstructionalMaterials(parsed.instructionalMaterials); }
-            if (parsed.extracurricular) { setExtracurricular(parsed.extracurricular); setEditingExtracurricular(parsed.extracurricular); }
-            if (parsed.evidence) { setEvidence(parsed.evidence); setEditingEvidence(parsed.evidence); }
-  
-            if (parsed.appSettings) {
-              setAppSettings(parsed.appSettings);
-              setEditingAppSettings(parsed.appSettings);
-            }
-
+          if (decompressed) {
+            applyPortfolioData(JSON.parse(decompressed));
             return true;
           }
         } catch (e) {
-          console.error("Failed to load/parse data", e);
-          alert("Error: The shared data is malformed or corrupted.");
+          console.error("Failed to load/parse shared data", e);
         }
       }
       return false;
     };
+
+    // Load portfolios from localStorage
+    const savedPortfolios = localStorage.getItem(PORTFOLIOS_KEY);
+    const savedCurrentId = localStorage.getItem(CURRENT_PORTFOLIO_ID_KEY);
+    
+    let loadedPortfolios: PortfolioSnapshot[] = [];
+    if (savedPortfolios) {
+      try {
+        loadedPortfolios = JSON.parse(savedPortfolios);
+        
+        // MIGRATION: Ensure at least one portfolio is marked as "Original" if they exist
+        if (loadedPortfolios.length > 0 && !loadedPortfolios.some(p => p.isOriginal)) {
+          loadedPortfolios[0].isOriginal = true;
+          // Only rename if it's the generic name
+          if (loadedPortfolios[0].name === "My Portfolio" || loadedPortfolios[0].name === "New Portfolio") {
+            loadedPortfolios[0].name = "Original";
+          }
+          localStorage.setItem(PORTFOLIOS_KEY, JSON.stringify(loadedPortfolios));
+        }
+        
+        setPortfolios([...loadedPortfolios]);
+      } catch (e) {
+        console.error("Failed to parse portfolios", e);
+      }
+    }
+    
+    if (savedCurrentId) {
+      setCurrentPortfolioId(savedCurrentId);
+    }
     
     handleUrlData().then(loadedFromUrl => {
-      if (loadedFromUrl) return;
+      if (loadedFromUrl) {
+        setShowDashboard(false);
+        setIsSharedView(true);
+        return;
+      }
 
+      // If we have portfolios and a current ID, load that one in the background
+      if (loadedPortfolios.length > 0 && savedCurrentId) {
+        const current = loadedPortfolios.find(p => p.id === savedCurrentId);
+        if (current) {
+          try {
+            const decompressed = LZString.decompressFromEncodedURIComponent(current.data);
+            if (decompressed) {
+              applyPortfolioData(JSON.parse(decompressed));
+              setActiveShareId(current.activeShareId || null);
+            }
+          } catch(e) {}
+        }
+      }
+      
+      // Always show dashboard on initial load if not loading from a shared URL
+      setShowDashboard(true);
+
+      // Initial migration and setup logic
       const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        // Migration for layoutOrder
-        if (!parsed.layoutOrder) {
-          parsed.layoutOrder = [
-            'sys-title', 'sys-subtitle', 'sys-desc', 'sys-divider', 
-            'sys-student', 'sys-professor', 'sys-ay',
-            ...(parsed.blocks || []).map((b: any) => b.id)
-          ];
-        }
-        
-        const sanitizeStrings = (obj: any, defaults: any) => {
-          const res = { ...obj };
-          Object.keys(defaults).forEach(key => {
-            if (typeof defaults[key] === 'string' && typeof res[key] === 'object') {
-              res[key] = defaults[key];
-            }
-          });
-          return res;
-        };
-
-        const merged = sanitizeStrings({ ...DEFAULT_TITLE_DATA, ...parsed }, DEFAULT_TITLE_DATA);
-        setTitlePageData(merged);
-        setEditingData(merged);
-      } catch (e) {
-        console.error('Failed to parse saved data', e);
-      }
-    }
-
-    const savedCover = localStorage.getItem(COVER_STORAGE_KEY);
-    if (savedCover) {
-      try {
-        const parsed = JSON.parse(savedCover);
-        
-        // Migration for heroMedia
-        if (parsed.heroImage !== undefined) {
-          parsed.heroMedia = { type: 'image', url: parsed.heroImage };
-          delete parsed.heroImage;
-        }
-
-        // Migration for project media
-        if (parsed.projects) {
-          parsed.projects = parsed.projects.map((p: any) => {
-            if (p.image !== undefined) {
-              return { ...p, media: { type: 'image', url: p.image }, image: undefined };
-            }
-            return p;
-          });
-        }
-
-        const merged = { ...DEFAULT_COVER_DATA, ...parsed };
-        setCoverPageData(merged);
-        setEditingCoverData(merged);
-      } catch (e) {
-        console.error('Failed to parse cover data', e);
-      }
-    }
-
-    const savedAcademic = localStorage.getItem(NEW_COVER_SECTION_KEY);
-    if (savedAcademic) {
-      try {
-        const parsed = JSON.parse(savedAcademic);
-        if (!parsed.layoutOrder) {
-          parsed.layoutOrder = ['sys-label', 'sys-heading', 'sys-divider', 'sys-p1', 'sys-p2', 'sys-pillars', ...(parsed.blocks || []).map((b: any) => b.id)];
-        }
-        
-        const sanitizeStrings = (obj: any, defaults: any) => {
-          const res = { ...obj };
-          Object.keys(defaults).forEach(key => {
-            if (typeof defaults[key] === 'string' && typeof res[key] === 'object') {
-              res[key] = defaults[key];
-            }
-          });
-          return res;
-        };
-
-        const merged = sanitizeStrings({ ...DEFAULT_ACADEMIC_COVER, ...parsed }, DEFAULT_ACADEMIC_COVER);
-        setAcademicCoverData(merged);
-        setEditingAcademicCoverData(merged);
-      } catch (e) {
-        console.error('Failed to parse academic cover data', e);
-      }
-    }
-
-    ['acknowledgment', 'dedication', 'personal-philosophy', 'cv', 'achievements', 'seminars', 'department-background', 'subject-teachers', 'subject-inclusions', 'appendices',
-     'premises', 'logo', 'intro-history', 'mission-vision', 'org-structure', 'subjects-taught', 'message-teachers', 'quizzes', 'activities', 'lesson-plan', 'instructional-materials', 'extracurricular', 'evidence'].forEach(id => {
-      const saved = localStorage.getItem(getSectionState(id as SectionId)?.[4] || '');
       if (saved) {
         try {
-          if (saved.includes('[object Object]')) throw new Error('Sanitize object string');
           const parsed = JSON.parse(saved);
           if (!parsed.layoutOrder) {
-            parsed.layoutOrder = ['sys-header', 'sys-divider', 'sys-content', ...(parsed.blocks || []).map((b: any) => b.id)];
+            parsed.layoutOrder = [
+              'sys-title', 'sys-subtitle', 'sys-desc', 'sys-divider', 
+              'sys-student', 'sys-professor', 'sys-ay',
+              ...(parsed.blocks || []).map((b: any) => b.id)
+            ];
           }
-          const defaultData = id === 'acknowledgment' ? DEFAULT_ACKNOWLEDGEMENT : id === 'dedication' ? DEFAULT_DEDICATION : DEFAULT_GENERIC_SECTION;
-          
           const sanitizeStrings = (obj: any, defaults: any) => {
             const res = { ...obj };
             Object.keys(defaults).forEach(key => {
@@ -2012,32 +2100,156 @@ export default function App() {
             });
             return res;
           };
-
-          const merged = sanitizeStrings({ ...defaultData, ...parsed }, defaultData);
-          const state = getSectionState(id as SectionId);
-          if (state) {
-            state[1](merged);
-            state[3](merged);
-          }
+          const merged = sanitizeStrings({ ...DEFAULT_TITLE_DATA, ...parsed }, DEFAULT_TITLE_DATA);
+          setTitlePageData(merged);
+          setEditingData(merged);
         } catch (e) {
-          console.error(`Failed to parse ${id} data`, e);
+          console.error('Failed to parse saved data', e);
         }
       }
-    });
 
-    const savedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
-    if (savedSettings) {
-      try {
-        const parsed = JSON.parse(savedSettings);
-        // Force the new provided default key if none exists in saved settings
-        if (!parsed.imgbbKey) {
-          parsed.imgbbKey = DEFAULT_SETTINGS.imgbbKey;
+      const savedCover = localStorage.getItem(COVER_STORAGE_KEY);
+      if (savedCover) {
+        try {
+          const parsed = JSON.parse(savedCover);
+          if (parsed.heroImage !== undefined) {
+            parsed.heroMedia = { type: 'image', url: parsed.heroImage };
+            delete parsed.heroImage;
+          }
+          if (parsed.projects) {
+            parsed.projects = parsed.projects.map((p: any) => {
+              if (p.image !== undefined) {
+                return { ...p, media: { type: 'image', url: p.image }, image: undefined };
+              }
+              return p;
+            });
+          }
+          const merged = { ...DEFAULT_COVER_DATA, ...parsed };
+          setCoverPageData(merged);
+          setEditingCoverData(merged);
+        } catch (e) {
+          console.error('Failed to parse cover data', e);
         }
-        const mergedSettings = { ...DEFAULT_SETTINGS, ...parsed };
-        setAppSettings(mergedSettings);
-        setEditingAppSettings(mergedSettings);
-      } catch (e) {}
-    }
+      }
+
+      const savedAcademic = localStorage.getItem(NEW_COVER_SECTION_KEY);
+      if (savedAcademic) {
+        try {
+          const parsed = JSON.parse(savedAcademic);
+          if (!parsed.layoutOrder) {
+            parsed.layoutOrder = ['sys-label', 'sys-heading', 'sys-divider', 'sys-p1', 'sys-p2', 'sys-pillars', ...(parsed.blocks || []).map((b: any) => b.id)];
+          }
+          const sanitizeStrings = (obj: any, defaults: any) => {
+            const res = { ...obj };
+            Object.keys(defaults).forEach(key => {
+              if (typeof defaults[key] === 'string' && typeof res[key] === 'object') {
+                res[key] = defaults[key];
+              }
+            });
+            return res;
+          };
+          const merged = sanitizeStrings({ ...DEFAULT_ACADEMIC_COVER, ...parsed }, DEFAULT_ACADEMIC_COVER);
+          setAcademicCoverData(merged);
+          setEditingAcademicCoverData(merged);
+        } catch (e) {
+          console.error('Failed to parse academic cover data', e);
+        }
+      }
+
+      ['acknowledgment', 'dedication', 'personal-philosophy', 'cv', 'achievements', 'seminars', 'department-background', 'subject-teachers', 'subject-inclusions', 'appendices',
+       'premises', 'logo', 'intro-history', 'mission-vision', 'org-structure', 'subjects-taught', 'message-teachers', 'quizzes', 'activities', 'lesson-plan', 'instructional-materials', 'extracurricular', 'evidence'].forEach(id => {
+        const saved = localStorage.getItem(getSectionState(id as SectionId)?.[4] || '');
+        if (saved) {
+          try {
+            if (saved.includes('[object Object]')) throw new Error('Sanitize object string');
+            const parsed = JSON.parse(saved);
+            if (!parsed.layoutOrder) {
+              parsed.layoutOrder = ['sys-header', 'sys-divider', 'sys-content', ...(parsed.blocks || []).map((b: any) => b.id)];
+            }
+            const defaultData = id === 'acknowledgment' ? DEFAULT_ACKNOWLEDGEMENT : id === 'dedication' ? DEFAULT_DEDICATION : DEFAULT_GENERIC_SECTION;
+            const sanitizeStrings = (obj: any, defaults: any) => {
+              const res = { ...obj };
+              Object.keys(defaults).forEach(key => {
+                if (typeof defaults[key] === 'string' && typeof res[key] === 'object') {
+                  res[key] = defaults[key];
+                }
+              });
+              return res;
+            };
+            const merged = sanitizeStrings({ ...defaultData, ...parsed }, defaultData);
+            const state = getSectionState(id as SectionId);
+            if (state) {
+              state[1](merged);
+              state[3](merged);
+            }
+          } catch (e) {
+            console.error(`Failed to parse ${id} data`, e);
+          }
+        }
+      });
+
+      const savedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
+      if (savedSettings) {
+        try {
+          const parsed = JSON.parse(savedSettings);
+          if (!parsed.imgbbKey) {
+            parsed.imgbbKey = DEFAULT_SETTINGS.imgbbKey;
+          }
+          const mergedSettings = { ...DEFAULT_SETTINGS, ...parsed };
+          setAppSettings(mergedSettings);
+          setEditingAppSettings(mergedSettings);
+        } catch (e) {}
+      }
+
+      // If no portfolios exist even after migration attempts, create the initial one
+      if (loadedPortfolios.length === 0) {
+        const id = Math.random().toString(36).substring(2, 11).toUpperCase();
+        
+        // Re-construct the full data object from the migrated state snapshots
+        const fullData: any = {
+           titlePage: titlePageData,
+           coverPage: coverPageData,
+           academicCover: academicCoverData,
+           acknowledgement: acknowledgement,
+           dedication: dedication,
+           philosophy: philosophy,
+           cv: cv,
+           achievements: achievements,
+           seminars: seminars,
+           deptBackground: deptBackground,
+           teachers: teachers,
+           inclusions: inclusions,
+           appendices: appendices,
+           premises: premises,
+           logo: logo,
+           introHistory: introHistory,
+           missionVision: missionVision,
+           orgStructure: orgStructure,
+           subjectsTaught: subjectsTaught,
+           messageTeachers: messageTeachers,
+           quizzes: quizzes,
+           activities: activities,
+           lessonPlan: lessonPlan,
+           instructionalMaterials: instructionalMaterials,
+           extracurricular: extracurricular,
+           evidence: evidence,
+           appSettings: appSettings
+        };
+
+        const initialPortfolio: PortfolioSnapshot = {
+          id,
+          name: "Original",
+          lastModified: Date.now(),
+          activeShareId: null,
+          data: LZString.compressToEncodedURIComponent(JSON.stringify(fullData)),
+          isOriginal: true
+        };
+        const list = [initialPortfolio];
+        setPortfolios(list);
+        setCurrentPortfolioId(id);
+        localStorage.setItem(PORTFOLIOS_KEY, JSON.stringify(list));
+        localStorage.setItem(CURRENT_PORTFOLIO_ID_KEY, id);
+      }
     });
   }, []);
 
@@ -2082,6 +2294,50 @@ export default function App() {
       setAppSettings(editingAppSettings);
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(editingAppSettings));
 
+      // Update current portfolio snapshot in the list
+      const allData = getAllData();
+      const compressed = LZString.compressToEncodedURIComponent(JSON.stringify(allData));
+      
+      let updatedPortfolios = [...portfolios];
+      let portfolioId = currentPortfolioId;
+      
+      if (!portfolioId) {
+        // Migration case or first save
+        portfolioId = Math.random().toString(36).substring(2, 11).toUpperCase();
+        setCurrentPortfolioId(portfolioId);
+        localStorage.setItem(CURRENT_PORTFOLIO_ID_KEY, portfolioId);
+        updatedPortfolios = [{
+          id: portfolioId,
+          name: "My Portfolio",
+          lastModified: Date.now(),
+          activeShareId: activeShareId,
+          data: compressed
+        }];
+      } else {
+        updatedPortfolios = portfolios.map(p => 
+          p.id === portfolioId 
+            ? { ...p, lastModified: Date.now(), data: compressed, activeShareId: activeShareId } 
+            : p
+        );
+      }
+      
+      setPortfolios(updatedPortfolios);
+      localStorage.setItem(PORTFOLIOS_KEY, JSON.stringify(updatedPortfolios));
+
+      // Auto-sync to cloud if this portfolio has a cloud link
+      if (activeShareId) {
+        console.log("Auto-syncing to cloud ID:", activeShareId);
+        try {
+          const docRef = doc(db, 'portfolios', activeShareId);
+          setDoc(docRef, { 
+            compressedData: compressed, 
+            updatedAt: Date.now() 
+          });
+        } catch (e) {
+          console.error("Cloud auto-sync failed:", e);
+        }
+      }
+
       setIsEditing(false);
       setHasUnlocked(false);
     } catch (e) {
@@ -2115,58 +2371,36 @@ export default function App() {
     setHasUnlocked(false);
   };
 
-  const generateShareLink = async () => {
-    // If we are editing, we should use the current editing states
-    const allData: any = {
-      titlePage: isEditing ? editingData : titlePageData,
-      coverPage: isEditing ? editingCoverData : coverPageData,
-      academicCover: isEditing ? editingAcademicCoverData : academicCoverData,
-      acknowledgement: isEditing ? editingAcknowledgement : acknowledgement,
-      dedication: isEditing ? editingDedication : dedication,
-      philosophy: isEditing ? editingPhilosophy : philosophy,
-      cv: isEditing ? editingCV : cv,
-      achievements: isEditing ? editingAchievements : achievements,
-      seminars: isEditing ? editingSeminars : seminars,
-      deptBackground: isEditing ? editingDeptBackground : deptBackground,
-      teachers: isEditing ? editingTeachers : teachers,
-      inclusions: isEditing ? editingInclusions : inclusions,
-      appendices: isEditing ? editingAppendices : appendices,
-      premises: isEditing ? editingPremises : premises,
-      logo: isEditing ? editingLogo : logo,
-      introHistory: isEditing ? editingIntroHistory : introHistory,
-      missionVision: isEditing ? editingMissionVision : missionVision,
-      orgStructure: isEditing ? editingOrgStructure : orgStructure,
-      subjectsTaught: isEditing ? editingSubjectsTaught : subjectsTaught,
-      messageTeachers: isEditing ? editingMessageTeachers : messageTeachers,
-      quizzes: isEditing ? editingQuizzes : quizzes,
-      activities: isEditing ? editingActivities : activities,
-      lessonPlan: isEditing ? editingLessonPlan : lessonPlan,
-      instructionalMaterials: isEditing ? editingInstructionalMaterials : instructionalMaterials,
-      extracurricular: isEditing ? editingExtracurricular : extracurricular,
-      evidence: isEditing ? editingEvidence : evidence,
-      appSettings: isEditing ? editingAppSettings : appSettings
-    };
-
-    const compressed = LZString.compressToEncodedURIComponent(JSON.stringify(allData));
-    
-    // Firestore limit is 1MB. Let's be safe at 900KB.
-    const sizeInBytes = new Blob([compressed]).size;
-    const isTooLargeForFirestore = sizeInBytes > 900 * 1024;
-    
+  const generateShareLink = async (targetIdOverride?: string, dataOverride?: any) => {
     setIsSharing(true);
     setShareUrl('Syncing to cloud...');
-    setIsUrlTooLarge(false); // Reset
+    setHasCopied(false);
+    setIsUrlTooLarge(false);
+
+    const targetId = targetIdOverride || currentPortfolioId;
+    const portfolioToShare = portfolios.find(p => p.id === targetId);
+    const existingShareId = portfolioToShare?.activeShareId;
     
-    // Save to Firestore with a retry mechanism
-    const attemptSync = async (retries = 2): Promise<string> => {
-      // Reuse activeShareId if it exists to maintain the same link, otherwise create 8-character ID
-      const shareId = activeShareId || Array.from({length: 8}, () => Math.random().toString(36)[2]).join('').toUpperCase();
-      
+    // Reuse existing ID if available, else generate new 8-character ID
+    const shareId = existingShareId || Array.from({length: 8}, () => Math.random().toString(36)[2]).join('').toUpperCase();
+    
+    // Determine data to sync
+    let dataToSync;
+    if (dataOverride) {
+      // Use provided data (compressed)
+      dataToSync = dataOverride;
+    } else {
+      // Use current app state
+      const allData = getAllData();
+      dataToSync = LZString.compressToEncodedURIComponent(JSON.stringify(allData));
+    }
+
+    const syncToFirebase = async (id: string, data: string, retries = 2): Promise<boolean> => {
       try {
-        console.log(`Cloud Sync Attempt with ID: ${shareId}. Retries left: ${retries}`);
+        console.log(`Cloud Sync Attempt with ID: ${id}. Retries left: ${retries}`);
         
-        const savePromise = setDoc(doc(db, 'portfolios', shareId), {
-          compressedData: compressed,
+        const savePromise = setDoc(doc(db, 'portfolios', id), {
+          compressedData: data,
           createdAt: serverTimestamp(),
           v: 4
         });
@@ -2176,35 +2410,42 @@ export default function App() {
         );
 
         await Promise.race([savePromise, timeoutPromise]);
-        
-        // Update activeShareId so future updates use the same link
-        setActiveShareId(shareId);
-        
-        return shareId;
+        return true;
       } catch (err) {
-        if (retries > 0) return attemptSync(retries - 1);
-        throw err;
+        if (retries > 0) return syncToFirebase(id, data, retries - 1);
+        console.error("Firebase sync error:", err);
+        return false;
       }
     };
 
-    try {
-      if (isTooLargeForFirestore) {
-        throw new Error("Data too large for Cloud Storage.");
-      }
+    // Firestore limit check (900KB safety margin)
+    const sizeInBytes = new Blob([dataToSync]).size;
+    const isTooLarge = sizeInBytes > 900 * 1024;
 
-      const shareId = await attemptSync();
-      const url = `${window.location.origin}${window.location.pathname}?p=${shareId}`;
-      setShareUrl(url);
-      console.log("Cloud Sync Success:", url);
-    } catch (error: any) {
-      console.warn("Cloud Sync Fallback to URL:", error);
-      const url = `${window.location.origin}${window.location.pathname}?data=${compressed}`;
-      setShareUrl(url);
-      // We no longer set isUrlTooLarge to true to avoid the red warning
-      setIsUrlTooLarge(false); 
+    if (!isTooLarge) {
+      const success = await syncToFirebase(shareId, dataToSync);
+      if (success) {
+        // Update local storage and state for this specific portfolio
+        const updatedPortfolios = portfolios.map(p => 
+          p.id === targetId ? { ...p, activeShareId: shareId, lastModified: Date.now() } : p
+        );
+        setPortfolios(updatedPortfolios);
+        localStorage.setItem(PORTFOLIOS_KEY, JSON.stringify(updatedPortfolios));
+        
+        if (targetId === currentPortfolioId) {
+          setActiveShareId(shareId);
+        }
+        
+        const url = `${window.location.origin}${window.location.pathname}?p=${shareId}`;
+        setShareUrl(url);
+        return;
+      }
     }
-    
-    setHasCopied(false); 
+
+    // Fallback: Embed data in URL if Firebase fails or is too large
+    const url = `${window.location.origin}${window.location.pathname}?data=${dataToSync}`;
+    setShareUrl(url);
+    setIsUrlTooLarge(false); 
   };
 
   const copyToClipboard = async () => {
@@ -2557,51 +2798,57 @@ export default function App() {
     ];
 
     return (
-      <div className="flex flex-col lg:flex-row gap-6 lg:pl-10 lg:border-l lg:border-neutral-100 w-full lg:w-auto">
+      <div className="flex flex-col gap-10 w-full">
         {/* Background Config */}
-        <div className="flex flex-col gap-2">
-          <span className="text-[7px] sm:text-[10px] font-black uppercase tracking-[0.2em] sm:tracking-[0.3em] text-neutral-300 text-center lg:text-left">Background</span>
-          <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2">
-            <div className="flex items-center gap-1 p-1 bg-neutral-50 rounded-xl border border-neutral-100">
+        <div className="flex flex-col gap-4">
+          <span className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-300">Section Background</span>
+          <div className="flex flex-col gap-6">
+            <div className="flex items-center gap-1 p-1 bg-neutral-50 rounded-2xl border border-neutral-100 w-fit">
               <button 
                 onClick={() => setEditingAppSettings(prev => ({ ...prev, bgType: 'color' }))}
-                className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${editingAppSettings.bgType === 'color' ? 'bg-black text-white' : 'text-neutral-400 hover:text-black'}`}
+                className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${editingAppSettings.bgType === 'color' ? 'bg-black text-white' : 'text-neutral-400 hover:text-black'}`}
               >
                 Color
               </button>
               <button 
                 onClick={() => setEditingAppSettings(prev => ({ ...prev, bgType: 'image' }))}
-                className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${editingAppSettings.bgType === 'image' ? 'bg-black text-white' : 'text-neutral-400 hover:text-black'}`}
+                className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${editingAppSettings.bgType === 'image' ? 'bg-black text-white' : 'text-neutral-400 hover:text-black'}`}
               >
                 Image
               </button>
             </div>
 
             {editingAppSettings.bgType === 'color' ? (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-4 bg-neutral-50 p-4 rounded-2xl border border-neutral-100 w-full sm:w-auto">
                 <input 
                   type="color" 
                   value={editingAppSettings.bgColor}
                   onChange={(e) => setEditingAppSettings(prev => ({ ...prev, bgColor: e.target.value }))}
-                  className="w-10 h-10 p-1 bg-white border border-neutral-100 rounded-xl cursor-pointer"
+                  className="w-12 h-12 p-1 bg-white border border-neutral-200 rounded-xl cursor-pointer"
                 />
+                <div className="flex flex-col">
+                  <span className="text-[8px] font-black uppercase text-neutral-300 tracking-widest">Hex Code</span>
+                  <span className="text-sm font-bold font-mono tracking-widest">{editingAppSettings.bgColor.toUpperCase()}</span>
+                </div>
               </div>
             ) : (
-              <div className="flex items-center gap-2">
-                 <input 
-                    type="text" 
-                    placeholder="Image URL"
-                    value={editingAppSettings.bgImage.startsWith('data:') ? 'Local Image File' : editingAppSettings.bgImage}
-                    onChange={(e) => setEditingAppSettings(prev => ({ ...prev, bgImage: e.target.value }))}
-                    className="bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-2 text-[10px] outline-none focus:border-black w-24 sm:w-32"
-                  />
-                  <button 
-                    onClick={() => bgFileInputRef.current?.click()}
-                    className="p-2 sm:p-2.5 bg-neutral-50 hover:bg-black hover:text-white border border-neutral-100 rounded-xl transition-all shadow-sm"
-                    title="Upload Local Image"
-                  >
-                    <Upload size={14} />
-                  </button>
+              <div className="flex flex-col gap-4">
+                 <div className="flex items-center gap-2">
+                   <input 
+                      type="text" 
+                      placeholder="Image URL"
+                      value={editingAppSettings.bgImage.startsWith('data:') ? 'Local Image File' : editingAppSettings.bgImage}
+                      onChange={(e) => setEditingAppSettings(prev => ({ ...prev, bgImage: e.target.value }))}
+                      className="flex-1 bg-neutral-50 border border-neutral-100 rounded-2xl px-6 py-4 text-[10px] outline-none focus:border-black shadow-inner"
+                    />
+                    <button 
+                      onClick={() => bgFileInputRef.current?.click()}
+                      className="p-4 bg-neutral-50 hover:bg-neutral-900 hover:text-white border border-neutral-100 rounded-2xl transition-all shadow-sm"
+                      title="Upload Local Image"
+                    >
+                      <Upload size={16} />
+                    </button>
+                 </div>
                   <input 
                     type="file"
                     ref={bgFileInputRef}
@@ -2609,15 +2856,18 @@ export default function App() {
                     accept="image/*"
                     onChange={handleBgUpload}
                   />
-                <div className="flex flex-col items-center gap-1">
-                    <span className="text-[7px] font-black text-neutral-300 uppercase">Opacity {editingAppSettings.bgOpacity ?? 100}%</span>
+                <div className="flex flex-col gap-4 p-6 bg-neutral-50 rounded-3xl border border-neutral-100">
+                    <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
+                      <span className="text-neutral-400">Opacity</span>
+                      <span className="text-black">{editingAppSettings.bgOpacity ?? 100}%</span>
+                    </div>
                     <input 
                       type="range" 
                       min="0" 
                       max="100" 
                       value={editingAppSettings.bgOpacity ?? 100}
                       onChange={(e) => setEditingAppSettings(prev => ({ ...prev, bgOpacity: parseInt(e.target.value) || 0 }))}
-                      className="w-16 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-black"
+                      className="w-full h-1 bg-neutral-200 rounded-lg appearance-none cursor-pointer accent-black"
                     />
                   </div>
               </div>
@@ -2625,56 +2875,110 @@ export default function App() {
           </div>
         </div>
 
-        {/* Typography Config */}
-        <div className="flex flex-col gap-2 lg:pl-10 lg:border-l lg:border-neutral-100">
-          <span className="text-[7px] sm:text-[10px] font-black uppercase tracking-[0.2em] sm:tracking-[0.3em] text-neutral-300 text-center lg:text-left">Typography</span>
-          <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2">
-            <select 
-              value={editingAppSettings.fontFamily}
-              onChange={(e) => setEditingAppSettings(prev => ({ ...prev, fontFamily: e.target.value }))}
-              className="bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest outline-none focus:border-black"
-            >
-              {fonts.map(font => (
-                <option key={font.name} value={font.value}>{font.name}</option>
-              ))}
-            </select>
-            
-            <div className="flex items-center gap-2">
+        {/* Font Config */}
+        <div className="flex flex-col gap-4">
+          <span className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-300">Typography Settings</span>
+          <div className="flex flex-col gap-2">
+            {fonts.map(font => (
+              <button
+                key={font.value}
+                onClick={() => setEditingAppSettings(prev => ({ ...prev, font: font.value }))}
+                className={`w-full p-5 rounded-2xl text-left border transition-all ${
+                  editingAppSettings.font === font.value 
+                    ? 'bg-neutral-900 text-white border-neutral-900 shadow-xl' 
+                    : 'bg-white text-neutral-400 border-neutral-50 hover:border-neutral-200'
+                }`}
+                style={{ fontFamily: font.value }}
+              >
+                <div className="flex justify-between items-center">
+                  <span className="text-[11px] font-black uppercase tracking-widest">{font.name}</span>
+                  {editingAppSettings.font === font.value && <Check size={14} />}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Color Palette Config */}
+        <div className="flex flex-col gap-4 p-6 bg-neutral-50 rounded-3xl border border-neutral-100">
+          <span className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400">Content Colors</span>
+          <div className="flex items-center gap-4">
+            <div className="flex flex-col gap-2 flex-1">
+              <span className="text-[8px] font-black uppercase text-neutral-300 tracking-widest">Main Text</span>
               <input 
                 type="color" 
-                value={editingAppSettings.textColor}
+                value={editingAppSettings.textColor || '#000000'}
                 onChange={(e) => setEditingAppSettings(prev => ({ ...prev, textColor: e.target.value }))}
-                className="w-10 h-10 p-1 bg-white border border-neutral-100 rounded-xl cursor-pointer"
-                title="Text Color"
+                className="w-full h-10 p-1 bg-white border border-neutral-200 rounded-xl cursor-pointer"
               />
-              <span className="text-[8px] font-black text-neutral-300 uppercase">Text Color</span>
+            </div>
+            <div className="w-[1px] h-10 bg-neutral-200" />
+            <div className="flex-1 flex flex-col justify-center">
+              <span className="text-[10px] font-mono font-bold tracking-tighter">{(editingAppSettings.textColor || '#000000').toUpperCase()}</span>
             </div>
           </div>
         </div>
 
-        {/* Share & Save Actions */}
-        <div className="flex flex-col gap-2 lg:pl-10 lg:border-l lg:border-neutral-100">
-          <span className="text-[7px] sm:text-[10px] font-black uppercase tracking-[0.2em] sm:tracking-[0.3em] text-neutral-300 text-center lg:text-left">Publish Artifact</span>
-          <div className="flex items-center justify-center lg:justify-start gap-4">
+        {/* Share & Publish Section */}
+        <div className="flex flex-col gap-4 mt-4 pt-8 border-t border-neutral-100">
+          <span className="text-[10px] font-black uppercase tracking-[0.3em] text-amber-500">Cloud Distribution</span>
+          <div className="flex flex-col gap-3">
             <button 
               onClick={generateShareLink}
-              disabled={shareUrl === 'Syncing to cloud...' && isSharing}
-              className="group relative flex items-center gap-3 px-8 py-4 bg-black text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-neutral-800 transition-all shadow-2xl active:scale-95 overflow-hidden disabled:opacity-50 disabled:cursor-wait"
+              disabled={isSharing}
+              className="group relative w-full flex items-center justify-center gap-3 px-8 py-6 bg-black text-white rounded-[2rem] text-[11px] font-black uppercase tracking-[0.2em] hover:bg-neutral-800 transition-all shadow-2xl active:scale-95 disabled:opacity-50 overflow-hidden"
             >
-              <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
-              <Share2 size={16} className={`relative z-10 ${(shareUrl === 'Syncing to cloud...' && isSharing) ? 'animate-spin' : ''}`} />
+              <div className={`absolute inset-0 bg-white/10 ${isSharing ? 'translate-y-0' : 'translate-y-full'} group-hover:translate-y-0 transition-transform duration-500`} />
+              <Share2 size={18} className={`relative z-10 ${isSharing ? 'animate-spin' : 'group-hover:rotate-12 transition-transform'}`} />
               <span className="relative z-10">
-                {(shareUrl === 'Syncing to cloud...' && isSharing) ? 'Syncing...' : 'Prepare Link'}
+                {isSharing ? 'Synchronizing State...' : (activeShareId ? 'Update Online Link' : 'Generate Secure Link')}
               </span>
             </button>
-            <div className="hidden sm:block">
-              <p className="text-[8px] font-black uppercase tracking-[0.4em] text-neutral-300 leading-tight">
-                Cloud Sync v3.0<br/>
-                <span className="opacity-40 italic">Active Instance</span>
-              </p>
-            </div>
+            
+            {shareUrl && shareUrl !== 'Syncing to cloud...' && !isUrlTooLarge && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex flex-col gap-3 p-6 bg-white border border-neutral-100 rounded-3xl shadow-xl shadow-black/5"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-neutral-400">Public Access Link</span>
+                  <div className="flex gap-1">
+                    {[1,2,3].map(i => <div key={i} className="w-1 h-1 rounded-full bg-green-400 animate-pulse" style={{ animationDelay: `${i * 200}ms` }} />)}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <input 
+                    readOnly
+                    value={shareUrl}
+                    className="flex-1 bg-neutral-50 px-4 py-3 rounded-xl text-[10px] font-mono border border-neutral-100 overflow-hidden text-ellipsis outline-none"
+                  />
+                  <button 
+                    onClick={() => {
+                      navigator.clipboard.writeText(shareUrl);
+                      alert('Share link copied to clipboard!');
+                    }}
+                    className="p-3 bg-neutral-900 text-white rounded-xl hover:bg-black transition-all active:scale-90"
+                    title="Copy to Clipboard"
+                  >
+                    <Copy size={16} />
+                  </button>
+                </div>
+                <p className="text-[8px] font-medium text-neutral-400 italic">
+                  * This link is unique to this portfolio instance.
+                </p>
+              </motion.div>
+            )}
+
+            {isUrlTooLarge && (
+              <div className="p-4 bg-red-50 border border-red-100 rounded-2xl">
+                <p className="text-[10px] font-bold text-red-600 uppercase tracking-tight">Data Package Too Large</p>
+                <p className="text-[8px] text-red-500 mt-1">Please reduce image sizes or remove some content before sharing.</p>
+              </div>
+            )}
           </div>
         </div>
+
       </div>
     );
   };
@@ -2687,6 +2991,242 @@ export default function App() {
         fontFamily: appSettings.fontFamily
       }}
     >
+      {/* Dashboard Modal */}
+      <AnimatePresence>
+        {showDashboard && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[10000] bg-white/95 backdrop-blur-3xl overflow-y-auto"
+          >
+            <div className="max-w-6xl mx-auto px-6 py-20 min-h-screen">
+              <div className="flex flex-col sm:flex-row justify-between items-center mb-16 gap-8">
+                <div className="space-y-4 text-center sm:text-left">
+                  <h2 className="text-4xl sm:text-6xl font-black uppercase tracking-tighter leading-none">Your Artifacts</h2>
+                  <p className="text-neutral-400 font-bold uppercase text-[10px] sm:text-xs tracking-[0.4em] px-1">Manage and duplicate your portfolio instances</p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <button 
+                    onClick={() => createPortfolio()}
+                    className="flex items-center gap-3 px-8 py-4 bg-black text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-neutral-800 transition-all shadow-xl active:scale-95"
+                  >
+                    <Plus size={18} />
+                    New Portfolio
+                  </button>
+                  <button 
+                    onClick={() => setShowDashboard(false)}
+                    className="p-4 bg-gray-50 text-black rounded-2xl hover:bg-gray-100 transition-all shadow-sm active:scale-95"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {portfolios.map((portfolio) => (
+                  <motion.div
+                    key={portfolio.id}
+                    layoutId={portfolio.id}
+                    className={`group relative bg-white border-2 rounded-3xl p-8 transition-all hover:shadow-2xl hover:-translate-y-2 ${
+                      currentPortfolioId === portfolio.id ? 'border-black shadow-xl ring-4 ring-black/5' : 'border-neutral-100 shadow-sm hover:border-black/20'
+                    }`}
+                  >
+                    <div className="space-y-6">
+                      <div className="flex justify-between items-start">
+                        <div className="p-3 bg-neutral-50 rounded-2xl group-hover:bg-black group-hover:text-white transition-colors">
+                          <Book size={24} />
+                        </div>
+                        <div className="flex items-center gap-2">
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const p = portfolios.find(item => item.id === portfolio.id);
+                            if (p) {
+                              generateShareLink(p.id, p.data);
+                            }
+                          }}
+                          className="p-2.5 text-neutral-400 hover:text-black hover:bg-neutral-50 rounded-xl transition-all"
+                          title="Share Portfolio"
+                        >
+                          <Share2 size={16} />
+                        </button>
+                           {!portfolio.isOriginal && (
+                             <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRenamingId(portfolio.id);
+                                setRenamingValue(portfolio.name);
+                              }}
+                              className="p-2.5 text-neutral-400 hover:text-black hover:bg-neutral-50 rounded-xl transition-all"
+                              title="Rename"
+                            >
+                              <Pencil size={16} />
+                            </button>
+                           )}
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              duplicatePortfolio(portfolio.id);
+                            }}
+                            className="p-2.5 text-neutral-400 hover:text-black hover:bg-neutral-50 rounded-xl transition-all"
+                            title="Duplicate"
+                          >
+                             <Copy size={16} />
+                          </button>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowStatusIcons(!showStatusIcons);
+                            }}
+                            className={`p-2.5 rounded-xl transition-all ${showStatusIcons ? 'bg-neutral-900 text-white shadow-lg' : 'text-neutral-400 hover:text-black hover:bg-neutral-50'}`}
+                            title={showStatusIcons ? "Hide Status" : "Show Status"}
+                          >
+                             {showStatusIcons ? <Eye size={16} /> : <EyeOff size={16} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        {renamingId === portfolio.id ? (
+                          <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                            <input 
+                              autoFocus
+                              className="flex-1 bg-neutral-50 border-2 border-black rounded-xl px-4 py-3 text-sm font-black uppercase tracking-tight focus:outline-none"
+                              value={renamingValue}
+                              onChange={e => setRenamingValue(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') handleRename(portfolio.id);
+                                if (e.key === 'Escape') setRenamingId(null);
+                              }}
+                            />
+                            <button 
+                              onClick={() => handleRename(portfolio.id)} 
+                              className="p-3 bg-black text-white rounded-xl hover:bg-neutral-800 transition-all"
+                            >
+                              <Check size={18} />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-3">
+                            <h3 className="text-2xl font-black uppercase tracking-tight truncate">{portfolio.name}</h3>
+                            {portfolio.isOriginal && showStatusIcons && (
+                              <span 
+                                onClick={(e) => e.stopPropagation()}
+                                className="px-3 py-1 bg-black text-[9px] text-white font-black rounded-full uppercase tracking-widest flex-shrink-0 flex items-center gap-1.5 select-none"
+                              >
+                                <Lock size={8} />
+                                Original
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 text-neutral-400 font-bold uppercase text-[9px] tracking-widest">
+                          <Calendar size={12} />
+                          <span>Last Modified: {new Date(portfolio.lastModified).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+
+                      <div className="pt-4 flex items-center gap-3">
+                        {deletingId === portfolio.id ? (
+                          <div className="flex-1 flex gap-2" onClick={e => e.stopPropagation()}>
+                            <button 
+                              onClick={() => setDeletingId(null)}
+                              className="flex-1 py-4 bg-gray-100 text-black rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-gray-200 transition-all"
+                            >
+                              Cancel
+                            </button>
+                            <button 
+                              onClick={() => deletePortfolio(portfolio.id)}
+                              className="flex-1 py-4 bg-red-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 transition-all shadow-lg shadow-red-200"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            {currentPortfolioId === portfolio.id ? (
+                              <button 
+                                onClick={() => setShowDashboard(false)}
+                                className="flex-1 py-4 bg-black text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-neutral-800 transition-all active:scale-95 shadow-lg shadow-black/10"
+                              >
+                                Continue Editing
+                              </button>
+                            ) : (
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  switchPortfolio(portfolio.id);
+                                }}
+                                className="flex-1 py-4 bg-black text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-neutral-800 transition-all active:scale-95 shadow-lg shadow-black/10"
+                              >
+                                Edit This Website
+                              </button>
+                            )}
+                            {!portfolio.isOriginal && (
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeletingId(portfolio.id);
+                                }}
+                                className="p-4 bg-gray-50 text-red-500 rounded-2xl hover:bg-red-50 transition-all hover:text-red-600 active:scale-95"
+                                title="Delete Portfolio"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+
+                      {portfolio.activeShareId && (
+                        <div className="pt-4 border-t border-neutral-50">
+                          <a 
+                            href={`${window.location.origin}${window.location.pathname}?p=${portfolio.activeShareId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-center gap-2 text-[9px] font-black uppercase tracking-[0.2em] text-neutral-300 hover:text-black transition-colors"
+                          >
+                            <ExternalLink size={12} />
+                            View Published Live Site
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
+      {/* Floating Dashboard Return Button - Only visible to owner (not in shared view) */}
+      {!showDashboard && !isSharedView && (
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="fixed top-6 left-1/2 -translate-x-1/2 z-[1002] flex items-center gap-2"
+        >
+          <button 
+            onClick={() => setShowDashboard(true)}
+            className="flex items-center gap-3 px-6 py-3 bg-white/80 backdrop-blur-3xl border border-neutral-100 rounded-2xl shadow-xl hover:bg-neutral-900 hover:text-white transition-all group active:scale-95 border-b-2 border-b-black/5"
+          >
+            <LayoutDashboard size={16} className="group-hover:rotate-12 transition-transform" />
+            <span className="text-[10px] font-black uppercase tracking-[0.2em]">Dashboard</span>
+          </button>
+          {!isEditing && (
+            <button 
+              onClick={() => generateShareLink()}
+              className="flex items-center gap-3 px-6 py-3 bg-white/80 backdrop-blur-3xl border border-neutral-100 rounded-2xl shadow-xl hover:bg-black hover:text-white transition-all group active:scale-95 border-b-2 border-b-black/5"
+            >
+              <Share2 size={16} className="group-hover:rotate-12 transition-transform" />
+              <span className="text-[10px] font-black uppercase tracking-[0.2em]">Share Link</span>
+            </button>
+          )}
+        </motion.div>
+      )}
+
       {/* GLOBAL BACKGROUND SYSTEM */}
       <div 
         className="fixed inset-0 z-[-3]" 
@@ -2819,6 +3359,18 @@ export default function App() {
 
                       <div className="w-[1px] h-8 bg-gray-100 mx-0.5 sm:mx-1" />
 
+                      {!isSharedView && (
+                        <button 
+                          onClick={() => setShowDashboard(true)}
+                          className="flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-3.5 rounded-xl sm:rounded-[1.5rem] bg-gray-50 text-black hover:bg-gray-100 transition-all font-black uppercase tracking-widest text-[10px]"
+                        >
+                          <LayoutDashboard size={14} />
+                          Dashboard
+                        </button>
+                      )}
+
+                      {!isSharedView && <div className="w-[1px] h-8 bg-gray-100 mx-0.5 sm:mx-1" />}
+
                       <div className="flex items-center gap-1 sm:gap-2">
                         <button 
                           onClick={handleSave} 
@@ -2837,18 +3389,28 @@ export default function App() {
                           <RotateCcw size={20} className="sm:w-6 sm:h-6" />
                         </button>
 
+                        <button 
+                          onClick={generateShareLink}
+                          className="p-3 sm:p-4 rounded-xl sm:rounded-[1.5rem] bg-gray-50 text-amber-500 hover:bg-amber-100 transition-all active:scale-95"
+                          title="Share & Publish"
+                        >
+                          <Share2 size={20} className="sm:w-6 sm:h-6" />
+                        </button>
+
                         <div className="w-[1px] h-8 bg-gray-100 mx-0.5 sm:mx-1" />
                         
-                        <button 
-                          onClick={() => {
-                            setIsEditing(false);
-                            setHasUnlocked(false);
-                          }}
-                          className="p-2 sm:p-4 rounded-xl sm:rounded-[1.5rem] bg-gray-50 text-amber-500 hover:bg-amber-50 transition-all active:scale-95"
-                          title="Finish Editing"
-                        >
-                          <Lock size={20} className="sm:w-6 sm:h-6" />
-                        </button>
+                        {showStatusIcons && (
+                          <button 
+                            onClick={() => {
+                              setIsEditing(false);
+                              setHasUnlocked(false);
+                            }}
+                            className="p-2 sm:p-4 rounded-xl sm:rounded-[1.5rem] bg-gray-50 text-amber-500 hover:bg-amber-50 transition-all active:scale-95"
+                            title="Finish Editing"
+                          >
+                            <Lock size={20} className="sm:w-6 sm:h-6" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </motion.div>
@@ -3287,7 +3849,7 @@ export default function App() {
                       <ChevronRight size={28} strokeWidth={4} className="group-hover:translate-x-3 transition-transform w-[24px] h-[24px] sm:w-[28px] sm:h-[28px]" />
                     </motion.button>
 
-                    {!showPasswordModal ? (
+                    {showStatusIcons && !isSharedView && !showPasswordModal && (
                       <button
                         onClick={() => setShowPasswordModal(true)}
                         className="p-5 bg-white shadow-xl rounded-full hover:bg-black hover:text-white transition-all active:scale-95 group border border-gray-100 flex items-center justify-center aspect-square"
@@ -3295,7 +3857,8 @@ export default function App() {
                       >
                         <Lock size={26} className="group-hover:scale-110 transition-transform text-black/50 group-hover:text-white/80" />
                       </button>
-                    ) : (
+                    )}
+                    {showStatusIcons && !isSharedView && showPasswordModal && (
                       <motion.form 
                         initial={{ opacity: 0, scale: 0.9, y: 10 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -3722,48 +4285,52 @@ export default function App() {
               className="fixed left-0 top-0 bottom-0 w-[85vw] sm:w-[420px] bg-white/95 backdrop-blur-3xl shadow-[30px_0_100px_rgba(0,0,0,0.15)] z-[1001] flex flex-col border-r border-neutral-100 overflow-hidden"
             >
               {/* Sidebar Header */}
-              <div className="p-8 sm:p-10 flex items-center justify-between border-b border-neutral-50 bg-neutral-50/30">
-                <div className="flex flex-col">
-                  <h2 className="text-3xl font-black uppercase tracking-tighter leading-none">Editor</h2>
-                  <p className="text-[10px] font-black opacity-30 uppercase tracking-[0.3em] mt-3">Portfolio Curation</p>
+              <div className="p-8 sm:p-10 flex flex-col gap-8 border-b border-neutral-50 bg-neutral-50/20">
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex flex-col">
+                    <h2 className="text-4xl font-black uppercase tracking-tighter leading-none">Editor</h2>
+                    <p className="text-[10px] font-black opacity-30 uppercase tracking-[0.3em] mt-3">Studio Interface</p>
+                  </div>
+                  <button 
+                    onClick={() => setIsEditing(false)}
+                    className="p-4 bg-white shadow-sm border border-neutral-100 rounded-[1.5rem] hover:bg-neutral-900 hover:text-white transition-all group"
+                  >
+                    <X size={20} className="group-hover:rotate-90 transition-transform" />
+                  </button>
                 </div>
-                <div className="flex gap-2">
-                   <button 
+                
+                {showStatusIcons && (
+                  <button 
                     onClick={() => {
                       setIsEditing(false);
                       setHasUnlocked(false);
                     }}
-                    className="p-3 bg-white shadow-sm border border-neutral-100 rounded-2xl hover:bg-neutral-900 hover:text-white transition-all text-amber-500"
+                    className="w-full flex items-center justify-center gap-4 py-5 bg-amber-50 text-amber-600 rounded-[1.5rem] text-[10px] font-black uppercase tracking-[0.2em] border border-amber-100 hover:bg-amber-100 transition-all shadow-sm"
                     title="Lock Editor"
                   >
                     <Lock size={18} />
+                    Lock All Content
                   </button>
-                  <button 
-                    onClick={() => setIsEditing(false)}
-                    className="p-3 bg-white shadow-sm border border-neutral-100 rounded-2xl hover:bg-red-50 hover:text-red-500 transition-all"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
+                )}
               </div>
 
               {/* Sidebar Content */}
               <div className="flex-1 overflow-y-auto px-8 sm:px-10 py-12 space-y-12">
                 {/* Save/Discard Actions */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-4">
                   <button 
                     onClick={handleSave}
-                    className="flex items-center justify-center gap-3 px-6 py-5 bg-neutral-900 text-white rounded-3xl font-black uppercase text-[10px] tracking-[0.2em] shadow-2xl hover:bg-black hover:scale-[1.02] active:scale-[0.98] transition-all"
+                    className="flex items-center justify-center gap-3 px-6 py-6 bg-neutral-900 text-white rounded-[2rem] font-black uppercase text-[10px] tracking-[0.2em] shadow-2xl hover:bg-black hover:scale-[1.02] active:scale-[0.98] transition-all"
                   >
                     <Save size={18} />
-                    Save All
+                    Save All Changes
                   </button>
                   <button 
                     onClick={handleCancel}
-                    className="flex items-center justify-center gap-3 px-6 py-5 bg-neutral-50 text-neutral-400 border border-neutral-100 rounded-3xl font-black uppercase text-[10px] tracking-[0.2em] hover:bg-red-50 hover:text-red-500 transition-all"
+                    className="flex items-center justify-center gap-3 px-6 py-6 bg-neutral-50 text-neutral-400 border border-neutral-100 rounded-[2rem] font-black uppercase text-[10px] tracking-[0.2em] hover:bg-red-50 hover:text-red-500 transition-all"
                   >
                     <RotateCcw size={18} />
-                    Reset
+                    Reset to Default
                   </button>
                 </div>
 
@@ -3773,27 +4340,27 @@ export default function App() {
                     <span className="text-[10px] font-black uppercase tracking-[0.4em] opacity-30">Components</span>
                     <div className="flex-1 h-[1px] bg-neutral-100 ml-6" />
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="flex flex-col gap-3">
                     <button 
                       onClick={() => addBlock('text')}
-                      className="aspect-square bg-neutral-50 rounded-[2.5rem] flex flex-col items-center justify-center gap-3 hover:bg-neutral-900 hover:text-white transition-all group border border-transparent hover:border-neutral-800"
+                      className="w-full h-20 bg-neutral-50 rounded-[1.5rem] flex items-center px-8 gap-6 hover:bg-neutral-900 hover:text-white transition-all group border border-transparent hover:border-neutral-800"
                     >
-                      <Type size={24} />
-                      <span className="text-[8px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all">Text</span>
+                      <Type size={20} />
+                      <span className="text-[10px] font-black uppercase tracking-[0.2em]">Add Text Block</span>
                     </button>
                     <button 
                       onClick={() => addBlock('image')}
-                      className="aspect-square bg-neutral-50 rounded-[2.5rem] flex flex-col items-center justify-center gap-3 hover:bg-neutral-900 hover:text-white transition-all group border border-transparent hover:border-neutral-800"
+                      className="w-full h-20 bg-neutral-50 rounded-[1.5rem] flex items-center px-8 gap-6 hover:bg-neutral-900 hover:text-white transition-all group border border-transparent hover:border-neutral-800"
                     >
-                      <ImageIcon size={24} />
-                      <span className="text-[8px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all">Image</span>
+                      <ImageIcon size={20} />
+                      <span className="text-[10px] font-black uppercase tracking-[0.2em]">Add Image Block</span>
                     </button>
                     <button 
                       onClick={() => addBlock('video')}
-                      className="aspect-square bg-neutral-50 rounded-[2.5rem] flex flex-col items-center justify-center gap-3 hover:bg-neutral-900 hover:text-white transition-all group border border-transparent hover:border-neutral-800"
+                      className="w-full h-20 bg-neutral-50 rounded-[1.5rem] flex items-center px-8 gap-6 hover:bg-neutral-900 hover:text-white transition-all group border border-transparent hover:border-neutral-800"
                     >
-                      <Video size={24} />
-                      <span className="text-[8px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all">Video</span>
+                      <Video size={20} />
+                      <span className="text-[10px] font-black uppercase tracking-[0.2em]">Add Video Block</span>
                     </button>
                   </div>
                 </div>
@@ -3805,16 +4372,16 @@ export default function App() {
                       <span className="text-[10px] font-black uppercase tracking-[0.4em] opacity-30">Title Page UI</span>
                       <div className="flex-1 h-[1px] bg-neutral-100 ml-6" />
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="flex flex-col gap-2">
                        <VisibilityToggle field="showHeaderImage" label="Header Logo" />
-                       <VisibilityToggle field="showTitle" label="Title" />
-                       <VisibilityToggle field="showSubtitle" label="Meta" />
-                       <VisibilityToggle field="showDescription" label="Course" />
-                       <VisibilityToggle field="showSubmittedByLabel" label="By" />
-                       <VisibilityToggle field="showStudentName" label="Student" />
-                       <VisibilityToggle field="showSubmittedToLabel" label="To" />
-                       <VisibilityToggle field="showProfessorName" label="Prof" />
-                       <VisibilityToggle field="showAcademicYear" label="A.Y." />
+                       <VisibilityToggle field="showTitle" label="Main Title" />
+                       <VisibilityToggle field="showSubtitle" label="Meta Details" />
+                       <VisibilityToggle field="showDescription" label="Course Info" />
+                       <VisibilityToggle field="showSubmittedByLabel" label="Submitted By Label" />
+                       <VisibilityToggle field="showStudentName" label="Student Name" />
+                       <VisibilityToggle field="showSubmittedToLabel" label="Submitted To Label" />
+                       <VisibilityToggle field="showProfessorName" label="Professor Name" />
+                       <VisibilityToggle field="showAcademicYear" label="Academic Year" />
                     </div>
                     {['sys-header', 'sys-title', 'sys-subtitle', 'sys-desc', 'sys-divider', 'sys-student', 'sys-professor', 'sys-ay'].some(id => !editingData.layoutOrder.includes(id)) && (
                       <button 
@@ -3841,30 +4408,30 @@ export default function App() {
                       <span className="text-[10px] font-black uppercase tracking-[0.4em] opacity-30">Cover Page UI</span>
                       <div className="flex-1 h-[1px] bg-neutral-100 ml-6" />
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-col gap-2">
                       <button 
                         onClick={() => setEditingAcademicCoverData(prev => ({ ...prev, showLabel: !prev.showLabel }))}
-                        className={`flex-1 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                        className={`w-full py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
                           editingAcademicCoverData.showLabel ? 'bg-neutral-900 text-white' : 'bg-neutral-50 text-neutral-400'
                         }`}
                       >
-                        Label
+                        {editingAcademicCoverData.showLabel ? '✓' : '○'} Toggle Label
                       </button>
                       <button 
                         onClick={() => setEditingAcademicCoverData(prev => ({ ...prev, showHeading: !prev.showHeading }))}
-                        className={`flex-1 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                        className={`w-full py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
                           editingAcademicCoverData.showHeading ? 'bg-neutral-900 text-white' : 'bg-neutral-50 text-neutral-400'
                         }`}
                       >
-                        Heading
+                         {editingAcademicCoverData.showHeading ? '✓' : '○'} Toggle Heading
                       </button>
                       <button 
                         onClick={() => setEditingAcademicCoverData(prev => ({ ...prev, showParagraph1: !prev.showParagraph1 }))}
-                        className={`flex-1 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                        className={`w-full py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
                           editingAcademicCoverData.showParagraph1 ? 'bg-neutral-900 text-white' : 'bg-neutral-50 text-neutral-400'
                         }`}
                       >
-                        Intro
+                         {editingAcademicCoverData.showParagraph1 ? '✓' : '○'} Toggle Intro
                       </button>
                     </div>
                   </div>
@@ -3879,9 +4446,9 @@ export default function App() {
                   
                     <div className="space-y-6">
 
-                      <div className="space-y-4">
-                      <span className="text-[9px] font-black uppercase tracking-[0.2em] opacity-40">Alignment</span>
-                      <div className="flex p-2 bg-neutral-50 rounded-2xl">
+                      <div className="flex flex-col gap-4">
+                      <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40">Alignment</span>
+                      <div className="flex flex-col bg-neutral-50 rounded-2xl p-2 gap-2">
                         {(['left', 'center', 'right'] as const).map(align => {
                           const state = getSectionState(currentSection);
                           const currentAlignment = currentSection === 'title-page' ? editingData.alignment
@@ -3897,13 +4464,17 @@ export default function App() {
                                 else if (currentSection === 'cover-page') setEditingAcademicCoverData(prev => ({ ...prev, alignment: align }));
                                 else if (state) state[3](prev => ({ ...prev, alignment: align }));
                               }}
-                              className={`flex-1 flex justify-center p-3 rounded-xl transition-all ${
+                              className={`w-full flex items-center justify-between px-6 py-4 rounded-xl transition-all ${
                                 currentAlignment === align
-                                  ? 'bg-white text-black shadow-lg scale-[1.05]'
-                                  : 'text-neutral-300 hover:text-neutral-900'
+                                  ? 'bg-black text-white shadow-lg'
+                                  : 'bg-white text-neutral-400 hover:text-black border border-neutral-100'
                               }`}
                             >
-                              <AlignmentIcon alignment={align} />
+                              <div className="flex items-center gap-4">
+                                <AlignmentIcon alignment={align} />
+                                <span className="text-[10px] font-black uppercase tracking-widest">{align}</span>
+                              </div>
+                              {currentAlignment === align && <Check size={12} />}
                             </button>
                           );
                         })}
