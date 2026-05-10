@@ -1850,18 +1850,20 @@ export default function App() {
 
               // Clear URL parameter so refreshing doesn't keep loading old shared data if they edit later
               window.history.replaceState({}, document.title, window.location.pathname);
-              return;
+              return true;
             }
           }
         } catch (e) {
           console.error("Failed to load/parse data", e);
         }
       }
+      return false;
     };
     
-    handleUrlData();
+    handleUrlData().then(loadedFromUrl => {
+      if (loadedFromUrl) return;
 
-    const saved = localStorage.getItem(STORAGE_KEY);
+      const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -1994,6 +1996,7 @@ export default function App() {
         setEditingAppSettings(mergedSettings);
       } catch (e) {}
     }
+    });
   }, []);
 
   const handlePasswordSubmit = (e?: React.FormEvent) => {
@@ -2116,8 +2119,8 @@ export default function App() {
         throw new Error("Portfolio data is too large for cloud sync (Limit: 1MB). Falling back to URL parameters.");
       }
 
-      // Create a unique ID for this share
-      const shareId = Math.random().toString(36).substring(2, 10).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+      // Create a unique ID for this share (10 characters, alphanumeric)
+      const shareId = Array.from({length: 10}, () => Math.random().toString(36)[2]).join('').toUpperCase();
       
       // Save to Firestore
       await setDoc(doc(db, 'portfolios', shareId), {
@@ -2145,7 +2148,6 @@ export default function App() {
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(shareUrl);
       } else {
-        // Fallback for non-secure contexts or older browsers
         const textArea = document.createElement("textarea");
         textArea.value = shareUrl;
         textArea.style.position = "fixed";
@@ -2161,7 +2163,15 @@ export default function App() {
       setTimeout(() => setHasCopied(false), 3000);
     } catch (err) {
       console.error('Failed to copy!', err);
-      alert("Could not copy link automatically. Please select the link text and copy manually.");
+      // Let the user manually copy as a final fallback
+      const input = document.getElementById('share-url-text') as HTMLParagraphElement;
+      if (input) {
+        const range = document.createRange();
+        range.selectNode(input);
+        window.getSelection()?.removeAllRanges();
+        window.getSelection()?.addRange(range);
+        alert("Auto-copy failed. We've selected the link for you—please press Ctrl+C or Cmd+C.");
+      }
     }
   };
 
@@ -3896,7 +3906,7 @@ export default function App() {
                         <div className="group relative">
                           <div className="absolute inset-0 bg-white/5 rounded-[2rem] blur-xl opacity-0 group-hover:opacity-100 transition-all duration-500" />
                           <div className="relative p-8 bg-neutral-800 rounded-[2.5rem] border border-white/5 shadow-2xl overflow-hidden min-h-[140px] flex items-center">
-                            <p className="text-white font-mono text-sm leading-relaxed break-all relative z-10 w-full line-clamp-3">
+                            <p id="share-url-text" className="text-white font-mono text-sm leading-relaxed break-all relative z-10 w-full line-clamp-3">
                               {shareUrl === 'Syncing to cloud...' ? (
                                 <span className="animate-pulse opacity-50 italic">Drafting unique identifier...</span>
                               ) : shareUrl}
