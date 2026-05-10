@@ -10,15 +10,15 @@ service cloud.firestore {
       // Allow anyone to read a portfolio by its ID
       allow get: if true;
       
-      // Allow anyone to create a new portfolio snapshot
-      allow create: if request.resource.data.compressedData is string
+      // Allow anyone to create or update a portfolio snapshot
+      allow create, update: if request.resource.data.compressedData is string
                    && request.resource.data.compressedData.size() < 1048576;
       
       // Do not allow listing all portfolios
       allow list: if false;
       
-      // Do not allow updating or deleting once created
-      allow update, delete: if false;
+      // Do not allow deleting
+      allow delete: if false;
     }
   }
 }

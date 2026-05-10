@@ -1692,6 +1692,7 @@ export default function App() {
   const [isSharing, setIsSharing] = useState(false);
   const [hasCopied, setHasCopied] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
+  const [activeShareId, setActiveShareId] = useState<string | null>(null);
   const [isUrlTooLarge, setIsUrlTooLarge] = useState(false);
   const [isLoadingShared, setIsLoadingShared] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -1763,6 +1764,8 @@ export default function App() {
       const urlParams = new URLSearchParams(window.location.search);
       const sharedData = urlParams.get('data');
       const sharedId = urlParams.get('id') || urlParams.get('p'); // Support both 'id' and 'p' (p is shorter)
+
+      if (sharedId) setActiveShareId(sharedId);
 
       let rawData = null;
 
@@ -1889,10 +1892,6 @@ export default function App() {
               setEditingAppSettings(parsed.appSettings);
             }
 
-            // Clear URL parameter so refreshing doesn't keep loading old shared data if they edit later
-            if (sharedId || sharedData) {
-              window.history.replaceState({}, document.title, window.location.pathname);
-            }
             return true;
           }
         } catch (e) {
@@ -2160,8 +2159,8 @@ export default function App() {
     
     // Save to Firestore with a retry mechanism
     const attemptSync = async (retries = 2): Promise<string> => {
-      // Create a super short unique ID for this share (8 characters, alphanumeric)
-      const shareId = Array.from({length: 8}, () => Math.random().toString(36)[2]).join('').toUpperCase();
+      // Reuse activeShareId if it exists to maintain the same link, otherwise create 8-character ID
+      const shareId = activeShareId || Array.from({length: 8}, () => Math.random().toString(36)[2]).join('').toUpperCase();
       
       try {
         console.log(`Cloud Sync Attempt with ID: ${shareId}. Retries left: ${retries}`);
@@ -2177,6 +2176,10 @@ export default function App() {
         );
 
         await Promise.race([savePromise, timeoutPromise]);
+        
+        // Update activeShareId so future updates use the same link
+        setActiveShareId(shareId);
+        
         return shareId;
       } catch (err) {
         if (retries > 0) return attemptSync(retries - 1);
