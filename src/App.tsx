@@ -2037,7 +2037,7 @@ export default function App() {
 
   const handlePasswordSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (passwordInput === '123') {
+    if (passwordInput === 'growingold9886') {
       setIsEditing(true);
       setHasUnlocked(true);
       setShowPasswordModal(false);
