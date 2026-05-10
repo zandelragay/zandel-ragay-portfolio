@@ -1863,7 +1863,7 @@ export default function App() {
                   else if (key === 'missionVision') { setMissionVision(parsed[key]); setEditingMissionVision(parsed[key]); }
                   else if (key === 'orgStructure') { setOrgStructure(parsed[key]); setEditingOrgStructure(parsed[key]); }
                   else if (key === 'subjectsTaught') { setSubjectsTaught(parsed[key]); setEditingSubjectsTaught(parsed[key]); }
-                  else if (key === 'messageTeachers') { setMessageTeachers(parsed[key]); setMessageTeachers(parsed[key]); } // Typo check in editing might be needed
+                  else if (key === 'messageTeachers') { setMessageTeachers(parsed[key]); setEditingMessageTeachers(parsed[key]); }
                 }
               }
             });
@@ -2149,6 +2149,7 @@ export default function App() {
     
     setIsSharing(true);
     setShareUrl('Syncing to cloud...');
+    setIsUrlTooLarge(false); // Reset
     
     try {
       if (isTooLargeForFirestore) {
@@ -2158,6 +2159,8 @@ export default function App() {
       // Create a super short unique ID for this share (8 characters, alphanumeric)
       const shareId = Array.from({length: 8}, () => Math.random().toString(36)[2]).join('').toUpperCase();
       
+      console.log("Attempting Cloud Sync with ID:", shareId);
+
       // Save to Firestore with a timeout
       const savePromise = setDoc(doc(db, 'portfolios', shareId), {
         compressedData: compressed,
@@ -2175,7 +2178,7 @@ export default function App() {
       // Use 'p' as the short parameter
       const url = `${window.location.origin}${window.location.pathname}?p=${shareId}`;
       setShareUrl(url);
-      setIsUrlTooLarge(false);
+      console.log("Cloud Sync Success:", url);
     } catch (error: any) {
       console.warn("Cloud Sync Fallback:", error);
       
@@ -2195,33 +2198,49 @@ export default function App() {
   };
 
   const copyToClipboard = async () => {
+    if (shareUrl === 'Syncing to cloud...') {
+      alert("Wait a moment—we are still syncing your data to the cloud.");
+      return;
+    }
+
     try {
+      // 1. Try modern clipboard API
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(shareUrl);
-      } else {
-        const textArea = document.createElement("textarea");
-        textArea.value = shareUrl;
-        textArea.style.position = "fixed";
-        textArea.style.left = "-9999px";
-        textArea.style.top = "0";
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        document.execCommand('copy');
-        textArea.remove();
+        setHasCopied(true);
+        setTimeout(() => setHasCopied(false), 3000);
+        return;
       }
-      setHasCopied(true);
-      setTimeout(() => setHasCopied(false), 3000);
+      
+      // 2. Fallback: ExecCommand Copy
+      const textArea = document.createElement("textarea");
+      textArea.value = shareUrl;
+      textArea.style.position = "absolute";
+      textArea.style.left = "-9999px";
+      textArea.style.top = "0";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      const successful = document.execCommand('copy');
+      textArea.remove();
+      
+      if (successful) {
+        setHasCopied(true);
+        setTimeout(() => setHasCopied(false), 3000);
+      } else {
+        throw new Error("ExecCommand failed");
+      }
     } catch (err) {
       console.error('Failed to copy!', err);
-      // Let the user manually copy as a final fallback
+      // 3. Final Fallback: Manual Selection
       const input = document.getElementById('share-url-text') as HTMLParagraphElement;
       if (input) {
         const range = document.createRange();
-        range.selectNode(input);
-        window.getSelection()?.removeAllRanges();
-        window.getSelection()?.addRange(range);
-        alert("Auto-copy failed. We've selected the link for you—please press Ctrl+C or Cmd+C.");
+        range.selectNodeContents(input);
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        alert("Clipboard access is restricted by your browser. We've highlighted the link—please press Ctrl+C or Cmd+C to copy manually.");
       }
     }
   };
@@ -2627,11 +2646,14 @@ export default function App() {
           <div className="flex items-center justify-center lg:justify-start gap-4">
             <button 
               onClick={generateShareLink}
-              className="group relative flex items-center gap-3 px-8 py-4 bg-black text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-neutral-800 transition-all shadow-2xl active:scale-95 overflow-hidden"
+              disabled={shareUrl === 'Syncing to cloud...' && isSharing}
+              className="group relative flex items-center gap-3 px-8 py-4 bg-black text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-neutral-800 transition-all shadow-2xl active:scale-95 overflow-hidden disabled:opacity-50 disabled:cursor-wait"
             >
               <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
-              <Share2 size={16} className="relative z-10" />
-              <span className="relative z-10">Prepare Link</span>
+              <Share2 size={16} className={`relative z-10 ${(shareUrl === 'Syncing to cloud...' && isSharing) ? 'animate-spin' : ''}`} />
+              <span className="relative z-10">
+                {(shareUrl === 'Syncing to cloud...' && isSharing) ? 'Syncing...' : 'Prepare Link'}
+              </span>
             </button>
             <div className="hidden sm:block">
               <p className="text-[8px] font-black uppercase tracking-[0.4em] text-neutral-300 leading-tight">
